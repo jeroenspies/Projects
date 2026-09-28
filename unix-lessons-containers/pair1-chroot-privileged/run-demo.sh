@@ -77,10 +77,10 @@ transcript "Exit 0."
 transcript_blank
 run_cmd 0 "${net_out}" --cap-drop ALL --cap-add NET_BIND_SERVICE -- \
   /usr/local/bin/observe.sh
-transcript_block "--cap-drop ALL --cap-add NET_BIND_SERVICE" "${LAST_CMD}" "${net_out}"
+transcript_cmd_result "--cap-drop ALL --cap-add NET_BIND_SERVICE" "${LAST_CMD}" "${net_out}" "0"
 run_cmd 0 "${priv_out}" --privileged -- \
   /usr/local/bin/observe.sh
-transcript_block "--privileged" "${LAST_CMD}" "${priv_out}"
+transcript_cmd_result "--privileged" "${LAST_CMD}" "${priv_out}" "0"
 run_cmd 0 "${nnp_out}" --cap-drop ALL --security-opt no-new-privileges -- \
   /usr/local/bin/observe.sh
 transcript_cmd_result "--cap-drop ALL --security-opt no-new-privileges" "${LAST_CMD}" "${nnp_out}" "0"
@@ -171,7 +171,7 @@ default_out=$(mktemp)
 nonroot_bind=$(mktemp)
 nonroot_caps=$(mktemp)
 run_cmd 0 "${default_out}" -- /usr/local/bin/observe.sh
-transcript_block "default capability set" "${LAST_CMD}" "${default_out}"
+transcript_cmd_result "default capability set" "${LAST_CMD}" "${default_out}" "0"
 default_sysctl=$(obs_get "${default_out}" UNPRIV_PORT_START)
 [[ "${default_sysctl}" == "0" ]] || fail "default ip_unprivileged_port_start was ${default_sysctl}, expected 0"
 run_cmd 0 "${nonroot_bind}" --user 1000:1000 -- /usr/local/bin/bind80
@@ -222,7 +222,11 @@ docker run --rm --cap-drop ALL --cap-add SYS_CHROOT "${IMAGE}" /usr/local/bin/tr
 chroot_rc=$?
 set -e
 cat "${chroot_allow}"
-if [[ "${chroot_rc}" -ne 0 ]]; then
+if [[ "${chroot_rc}" -eq 0 ]]; then
+  transcript_cmd_result "chroot --cap-drop ALL --cap-add SYS_CHROOT" \
+    "$(format_cmd docker run --rm --cap-drop ALL --cap-add SYS_CHROOT "${IMAGE}" /usr/local/bin/try-chroot)" \
+    "${chroot_allow}" "0"
+else
   chroot_unconfined=$(mktemp)
   set +e
   docker run --rm --cap-drop ALL --cap-add SYS_CHROOT \
@@ -234,6 +238,9 @@ if [[ "${chroot_rc}" -ne 0 ]]; then
   if [[ "${chroot_unconfined_rc}" -ne 0 ]]; then
     fail "chroot with CAP_SYS_CHROOT failed under the default profile (exit ${chroot_rc}) and with apparmor=unconfined (exit ${chroot_unconfined_rc})"
   fi
+  transcript_cmd_result "chroot --cap-drop ALL --cap-add SYS_CHROOT --security-opt apparmor=unconfined" \
+    "$(format_cmd docker run --rm --cap-drop ALL --cap-add SYS_CHROOT --security-opt apparmor=unconfined "${IMAGE}" /usr/local/bin/try-chroot)" \
+    "${chroot_unconfined}" "0"
   chroot_positive="default Docker profile denied the syscall (exit ${chroot_rc}); it succeeded only with apparmor=unconfined. The call is still chroot(\"/tmp\") followed by exit."
 fi
 

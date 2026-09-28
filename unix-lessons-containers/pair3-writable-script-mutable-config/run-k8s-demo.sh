@@ -129,7 +129,7 @@ immutable_body=$(mktemp)
 printf '%s\n' '{"data":{"run.sh":"#!/bin/sh\necho SCRIPT_VERSION=hacked\n"}}' >"${immutable_body}"
 expect_denied 'immutable' "admin patch of immutable ConfigMap" \
   kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file "${immutable_body}"
-transcript_block "admin patch of immutable ConfigMap" "${LAST_CMD}" "${DENIED_LOG}"
+transcript_cmd_result "admin patch of immutable ConfigMap" "${LAST_CMD}" "${DENIED_LOG}" "${DENIED_RC}"
 expect_denied 'immutable' "cm-editor API patch of immutable ConfigMap" \
   api_patch_as cm-editor reports report-script-v7 "${immutable_body}"
 transcript_block "cm-editor API patch of immutable ConfigMap" "$(cat /tmp/unix-lessons/api-patch.cmd)" "${DENIED_LOG}"
@@ -144,12 +144,40 @@ transcript_block "version-seven image" \
   "${image_log}"
 mutable_image=$(kubectl get cronjob -n reports nightly-report -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
 sa_name=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.serviceAccountName}')
-automount=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.automountServiceAccountToken}')
+automount_log=$(mktemp)
+automount_jsonpath='{.spec.jobTemplate.spec.template.spec.automountServiceAccountToken}'
+set +e
+kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${automount_jsonpath}" >"${automount_log}" 2>&1
+automount_rc=$?
+set -e
+automount=$(tr -d '[:space:]' < "${automount_log}")
 cm_name=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.volumes[0].configMap.name}')
+sc_log=$(mktemp)
+sc_jsonpath='runAsUser={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsUser}{"\n"}readOnlyRootFilesystem={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem}{"\n"}allowPrivilegeEscalation={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation}{"\n"}drop={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop[0]}{"\n"}'
+set +e
+kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${sc_jsonpath}" >"${sc_log}" 2>&1
+sc_rc=$?
+set -e
+sc_user=$(sed -n 's/^runAsUser=//p' "${sc_log}" | head -n 1)
+sc_ro=$(sed -n 's/^readOnlyRootFilesystem=//p' "${sc_log}" | head -n 1)
+sc_ape=$(sed -n 's/^allowPrivilegeEscalation=//p' "${sc_log}" | head -n 1)
+sc_drop=$(sed -n 's/^drop=//p' "${sc_log}" | head -n 1)
 [[ "$fixed_image" == "${BUSYBOX_IMAGE}" ]] || fail "fixed image is ${fixed_image}"
 [[ "$mutable_image" == "${BUSYBOX_TAG}" ]] || fail "mutable image is ${mutable_image}"
 [[ "$sa_name" == "report-runner" ]] || fail "fixed service account is ${sa_name}"
+[[ "$automount_rc" -eq 0 ]] || fail "reading automountServiceAccountToken exited ${automount_rc}"
 [[ "$automount" == "false" ]] || fail "automountServiceAccountToken is ${automount}"
+transcript_cmd_result "automountServiceAccountToken" \
+  "$(format_cmd kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${automount_jsonpath}")" \
+  "${automount_log}" "${automount_rc}"
+[[ "$sc_rc" -eq 0 ]] || fail "reading nightly-report-fixed securityContext exited ${sc_rc}"
+[[ "$sc_user" == "65534" ]] || fail "nightly-report-fixed runAsUser is ${sc_user}"
+[[ "$sc_ro" == "true" ]] || fail "nightly-report-fixed readOnlyRootFilesystem is ${sc_ro}"
+[[ "$sc_ape" == "false" ]] || fail "nightly-report-fixed allowPrivilegeEscalation is ${sc_ape}"
+[[ "$sc_drop" == "ALL" ]] || fail "nightly-report-fixed capabilities.drop is ${sc_drop}"
+transcript_cmd_result "nightly-report-fixed securityContext" \
+  "$(format_cmd kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${sc_jsonpath}")" \
+  "${sc_log}" "${sc_rc}"
 [[ "$cm_name" == "report-script-v7" ]] || fail "fixed configmap is ${cm_name}"
 
 logs_seven=$(run_from_cronjob version-seven nightly-report-fixed)

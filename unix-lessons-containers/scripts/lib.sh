@@ -234,6 +234,7 @@ expect_denied() {
   summary_blank
   export DENIED_LOG="$log"
   export LAST_CMD
+  export DENIED_RC="$rc"
 }
 
 # api_patch_as USER NAMESPACE NAME BODY_FILE

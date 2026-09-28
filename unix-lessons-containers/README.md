@@ -96,14 +96,14 @@ kind delete cluster --name unix-lessons
 
 **Kubernetes counterpart.** `privileged: true` drops the restrictions (capabilities, seccomp, AppArmor, devices) that make a container a boundary. Pod Security Standards Baseline forbids privileged containers, host namespaces, and hostPath. Restricted also requires `drop: ["ALL"]`, `allowPrivilegeEscalation: false`, `runAsNonRoot: true`, and an explicit seccomp profile. `allowPrivilegeEscalation` defaults to true. The value `false` cannot be combined with `privileged` or `CAP_SYS_ADMIN`, so such containers can always escalate. `false` sets the kernel `no_new_privs` flag, which also blocks file capabilities on a later exec.
 
-**What the demo proves.** As root, three runs print `grep ^Cap /proc/self/status` and decode `CapEff` with `capsh --decode`. The three masks differ:
+**What the demo proves.** As root, four runs print `grep ^Cap /proc/self/status` and decode `CapEff` with `capsh --decode`. The three masks differ:
 
 | Run | What is asserted |
 | --- | --- |
 | `--cap-drop ALL` | `CapEff` decodes to no named capability. `chroot(2)` returns EPERM. |
 | `--cap-drop ALL --cap-add NET_BIND_SERVICE` | `CapEff` contains `cap_net_bind_service` and not `cap_sys_admin`. Device and mount counts stay the same as the dropped run. |
 | `--privileged` | `CapEff` contains `cap_sys_admin`. `/dev` has more entries. The mount count changes: the default runtime's masked `/proc` and `/sys` mounts are absent, so the count is often lower. |
-| `--security-opt no-new-privileges` | `NoNewPrivs` in `/proc/self/status` is `1` (it is `0` without the flag). |
+| `--cap-drop ALL --security-opt no-new-privileges` | `NoNewPrivs` in `/proc/self/status` is `1` (it is `0` without the flag). |
 
 Port 80 is a separate fact. Since Docker 20.10, a container with its own network namespace gets `net.ipv4.ip_unprivileged_port_start=0` ([moby PR 41030](https://github.com/moby/moby/pull/41030)). The demo prints that sysctl inside a default container and asserts it is `0`. A non-root bind of `127.0.0.1:80` then **succeeds** with no capability. `--cap-add NET_BIND_SERVICE` does not change that: uid 1000 still has `CapEff` 0 and an empty ambient set, because `--cap-add` does not install ambient capabilities.
 
@@ -165,7 +165,7 @@ spec:
 
 ### What this shows
 
-A root loop runs a mode `0777` script that a non-root user can change, and `/tmp/proof` then contains `uid=0(root)`; the same append is denied on the root-owned mode `0755` file. On the cluster, `cm-editor` may patch a ConfigMap and may not get it, so `kubectl patch` fails on the client's GET, while the same change sent directly to the API as `cm-editor` (the demo impersonates that user from the admin kubeconfig; a real `cm-editor` sends the same PATCH with its own credentials) returns HTTP 200 and the next Job prints `SCRIPT_VERSION=two`. Withholding `get` does not stop a user who has `patch`. An immutable ConfigMap rejects the patch. The fixed CronJob pins the image by digest and uses that ConfigMap, and its Job prints `SCRIPT_VERSION=seven`. The demo does not move the tag.
+A root loop runs a mode `0777` script that a non-root user can change, and `/tmp/proof` then contains `uid=0(root)`; the same append is denied on the root-owned mode `0755` file. On the cluster, `cm-editor` may patch a ConfigMap and may not get it, so `kubectl patch` fails because the API server denies the GET that kubectl sends first, while the same change sent directly to the API as `cm-editor` (the demo impersonates that user from the admin kubeconfig; a real `cm-editor` sends the same PATCH with its own credentials) returns HTTP 200 and the next Job prints `SCRIPT_VERSION=two`. Withholding `get` does not stop a user who has `patch`. An immutable ConfigMap rejects the patch. The fixed CronJob pins the image by digest and uses that ConfigMap, and its Job prints `SCRIPT_VERSION=seven`. The demo does not move the tag.
 
 **Unix lesson.** The dangerous part is not the scheduler. It is a file that a stronger identity executes and a weaker identity can change. Mode `0777` on a root-run script is that pattern. The fix on a single host is `root:root` mode `0755` in a directory only root can write.
 

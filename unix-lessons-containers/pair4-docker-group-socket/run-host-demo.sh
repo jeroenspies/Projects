@@ -34,28 +34,28 @@ set +e
 ls -l "$sock" 2>&1 | tee "${ls_file}" >/dev/null
 ls_rc=${PIPESTATUS[0]}
 set -e
-transcript_block "ls" "$(format_cmd ls -l "$sock")" "${ls_file}"
+transcript_cmd_result "ls" "$(format_cmd ls -l "$sock")" "${ls_file}" "${ls_rc}"
 [[ "${ls_rc}" -eq 0 ]] || fail "ls ${sock} exited ${ls_rc}"
 
 set +e
 stat -c '%A %a %U %G %F' "$sock" 2>&1 | tee "${stat_file}" >/dev/null
 stat_rc=${PIPESTATUS[0]}
 set -e
-transcript_block "stat" "$(format_cmd stat -c '%A %a %U %G %F' "$sock")" "${stat_file}"
+transcript_cmd_result "stat" "$(format_cmd stat -c '%A %a %U %G %F' "$sock")" "${stat_file}" "${stat_rc}"
 [[ "${stat_rc}" -eq 0 ]] || fail "stat ${sock} exited ${stat_rc}"
 
 set +e
 id 2>&1 | tee "${id_file}" >/dev/null
 id_rc=${PIPESTATUS[0]}
 set -e
-transcript_block "id" "$(format_cmd id)" "${id_file}"
+transcript_cmd_result "id" "$(format_cmd id)" "${id_file}" "${id_rc}"
 [[ "${id_rc}" -eq 0 ]] || fail "id exited ${id_rc}"
 
 set +e
 id -nG 2>&1 | tee "${groups_file}" >/dev/null
 groups_rc=${PIPESTATUS[0]}
 set -e
-transcript_block "groups" "$(format_cmd id -nG)" "${groups_file}"
+transcript_cmd_result "groups" "$(format_cmd id -nG)" "${groups_file}" "${groups_rc}"
 [[ "${groups_rc}" -eq 0 ]] || fail "id -nG exited ${groups_rc}"
 
 ls_out=$(cat "${ls_file}")

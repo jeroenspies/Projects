@@ -116,13 +116,25 @@ summary_blank
 found_event=no
 event_line=""
 event_log=$(mktemp)
+event_raw=$(mktemp)
 event_rc=0
-event_cmd=$(format_cmd kubectl get events -n team-a -o jsonpath='{range .items[*]}{.reason}{" "}{.message}{"\n"}{end}')
+event_jsonpath='{range .items[*]}{.involvedObject.kind}{" "}{.involvedObject.name}{" "}{.reason}{" "}{.message}{"\n"}{end}'
+event_kubectl=(
+  kubectl get events -n team-a
+  --field-selector 'reason=FailedCreate,involvedObject.kind=ReplicaSet'
+  -o "jsonpath=${event_jsonpath}"
+)
+event_cmd="$(format_cmd "${event_kubectl[@]}") | grep '^ReplicaSet noncompliant-'"
 for _ in $(seq 1 30); do
   set +e
-  kubectl get events -n team-a -o jsonpath='{range .items[*]}{.reason}{" "}{.message}{"\n"}{end}' >"${event_log}" 2>&1
+  "${event_kubectl[@]}" >"${event_raw}" 2>&1
   event_rc=$?
   set -e
+  if [[ "$event_rc" -ne 0 ]]; then
+    cp "${event_raw}" "${event_log}"
+  else
+    grep '^ReplicaSet noncompliant-' "${event_raw}" >"${event_log}" || true
+  fi
   event_line=$(grep -E 'PodSecurity|restricted|privileged' "${event_log}" | head -n 1 || true)
   if [[ -n "$event_line" ]]; then
     found_event=yes
@@ -130,14 +142,30 @@ for _ in $(seq 1 30); do
   fi
   sleep 2
 done
-pod_count=$(kubectl get pods -n team-a -l app=noncompliant --no-headers 2>/dev/null | wc -l | tr -d ' ')
-ready=$(kubectl get deploy -n team-a noncompliant -o jsonpath='{.status.readyReplicas}' 2>/dev/null || true)
+pods_out=$(mktemp)
+pods_err=$(mktemp)
+pods_file=$(mktemp)
+pods_cmd=$(format_cmd kubectl get pods -n team-a -l app=noncompliant --no-headers)
+set +e
+kubectl get pods -n team-a -l app=noncompliant --no-headers >"${pods_out}" 2>"${pods_err}"
+pods_rc=$?
+set -e
+pod_count=$(wc -l < "${pods_out}" | tr -d ' ')
+cat "${pods_out}" "${pods_err}" > "${pods_file}"
+ready_file=$(mktemp)
+ready_cmd=$(format_cmd kubectl get deploy -n team-a noncompliant -o 'jsonpath={.status.readyReplicas}')
+set +e
+kubectl get deploy -n team-a noncompliant -o 'jsonpath={.status.readyReplicas}' >"${ready_file}" 2>&1
+ready_rc=$?
+set -e
+ready=$(tr -d '[:space:]' < "${ready_file}")
 [[ "$pod_count" == "0" ]] || fail "noncompliant Deployment created ${pod_count} pod(s)"
+[[ "$ready_rc" -eq 0 ]] || fail "reading readyReplicas exited ${ready_rc}"
 [[ -z "$ready" || "$ready" == "0" ]] || fail "noncompliant Deployment has readyReplicas=${ready}"
 [[ "$found_event" == "yes" ]] || fail "no ReplicaSet/pod event mentioned PodSecurity"
 transcript_cmd_result "ReplicaSet event" "${event_cmd}" "${event_log}" "${event_rc}"
-transcript_exec "noncompliant pods" kubectl get pods -n team-a -l app=noncompliant --no-headers
-transcript_exec "readyReplicas" kubectl get deploy -n team-a noncompliant -o jsonpath='{.status.readyReplicas}'
+transcript_cmd_result "noncompliant pods" "${pods_cmd}" "${pods_file}" "${pods_rc}"
+transcript_cmd_result "readyReplicas" "${ready_cmd}" "${ready_file}" "${ready_rc}"
 summary "Pods with label app=noncompliant: ${pod_count}. readyReplicas: ${ready:-0}."
 summary "Event: \`${event_line}\`"
 summary_blank
@@ -149,7 +177,7 @@ kubectl delete validatingadmissionpolicybinding pods-only-own-serviceaccount --i
 # create, not apply: kubectl apply GETs the pod first, and this Role cannot get pods.
 expect_ok "other-sa pod before the binding" \
   kubectl create -f "${MAN}/pod-other-sa.yaml" --as=dev-user
-transcript_block "other-sa before the binding" "${LAST_CMD}" "${OK_LOG}"
+transcript_cmd_result "other-sa before the binding" "${LAST_CMD}" "${OK_LOG}" "0"
 sa_name=$(kubectl get pod -n team-a use-other-sa -o jsonpath='{.spec.serviceAccountName}')
 [[ "$sa_name" == "other-sa" ]] || fail "pod service account was ${sa_name}"
 if ! kubectl wait -n team-a --for=condition=Ready pod/use-other-sa --timeout=180s; then
@@ -166,7 +194,7 @@ expect_ok "ValidatingAdmissionPolicy" kubectl apply -f "${SNIP}/vap.yaml"
 # Re-create once more so the summary shows the object alone still allows the request.
 expect_ok "other-sa pod while the policy is unbound" \
   kubectl create -f "${MAN}/pod-other-sa.yaml" --as=dev-user
-transcript_block "other-sa before the binding, policy unbound" "${LAST_CMD}" "${OK_LOG}"
+transcript_cmd_result "other-sa before the binding, policy unbound" "${LAST_CMD}" "${OK_LOG}" "0"
 kubectl delete pod -n team-a use-other-sa --wait=true
 summary "The policy object alone did not reject the pod. The sketch has no binding."
 summary_blank
@@ -183,7 +211,7 @@ for _ in $(seq 1 8); do
   set -e
   if [[ "$vap_rc" -ne 0 ]] && grep -E -q 'pods-only-own-serviceaccount|ValidatingAdmissionPolicy' "${vap_log}"; then
     denied=yes
-    transcript_block "other-sa after the binding" "${other_cmd}" "${vap_log}"
+    transcript_cmd_result "other-sa after the binding" "${other_cmd}" "${vap_log}" "${vap_rc}"
     summary "Denied: other-sa pod after the binding (exit ${vap_rc})"
     summary '```'
     sed -n '1,30p' "${vap_log}" | while IFS= read -r line; do
@@ -197,7 +225,7 @@ for _ in $(seq 1 8); do
   sleep 2
 done
 if [[ "$denied" != "yes" ]]; then
-  transcript_block "other-sa after the binding" "${other_cmd}" "${vap_log}"
+  transcript_cmd_result "other-sa after the binding" "${other_cmd}" "${vap_log}" "${vap_rc}"
   fail "binding did not reject the other-sa pod"
 fi
 if kubectl get pod -n team-a use-other-sa >/dev/null 2>&1; then
