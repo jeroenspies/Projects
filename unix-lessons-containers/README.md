@@ -45,6 +45,13 @@ kind names the kubeconfig context `kind-<cluster_name>`, so this cluster's conte
 kubectl config use-context kind-unix-lessons
 ```
 
+The kind job then runs:
+
+```bash
+bash scripts/record-runner.sh
+bash scripts/record-environment.sh kind
+```
+
 Load busybox the way the workflow does, tag and digest:
 
 ```bash
@@ -56,11 +63,9 @@ kind load docker-image docker.io/library/busybox@sha256:bdf57e528e45e4433820e045
   || echo "digest image was not imported by that ref; pods that pin the digest will pull it"
 ```
 
-Then the kind job runs:
+Then:
 
 ```bash
-bash scripts/record-runner.sh
-bash scripts/record-environment.sh kind
 bash validate-snippets.sh
 bash pair2-sudoers-create-pods/run-k8s-demo.sh
 bash pair3-writable-script-mutable-config/run-k8s-demo.sh
