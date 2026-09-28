@@ -6,6 +6,8 @@ Background research and demos built with AI assistants, designed and reviewed by
 
 GitHub Actions runs them. The workflow is [`../.github/workflows/unix-lessons-containers.yml`](../.github/workflows/unix-lessons-containers.yml). It runs on a push to `main` that changes this directory or that workflow file, and when started manually. The job summary for each run keeps the before/after table. Each pair also writes a short transcript: the command that ran, in a code block, and the output that command printed, in a code block. The same transcript is saved as `summaries/<pair>.md` and uploaded as a workflow artifact. RESULTS.md in this directory keeps the transcripts captured from a completed run. Workflow logs and uploaded artifacts are removed after their retention period.
 
+Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md).
+
 ## Running locally
 
 Run these demos only in CI or on a disposable VM. The Docker pair starts a `--privileged` container; the Kubernetes pairs expect a throw-away kind cluster and use its admin kubeconfig. Do not point them at a cluster you care about. Provided as-is, for education.
