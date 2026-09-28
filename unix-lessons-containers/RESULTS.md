@@ -1,19 +1,19 @@
 # Results
 
-Run: https://github.com/jeroenspies/Projects/actions/runs/36412260734
+Run: https://github.com/jeroenspies/Projects/actions/runs/36443145605
 
-Commit: `114ab21ff8f57008ec4b966bf52dfe1fdde0a554`
+Commit: `c803f485f41e9f7dbece18f773041f85b8512706`
 
 UTC:
 
-- Run created: 2026-09-28T10:52:26Z
-- Run completed: 2026-09-28T10:56:10Z
-- shellcheck: 2026-09-28T10:52:29Z – 2026-09-28T10:52:38Z
-- gitleaks: 2026-09-28T10:52:30Z – 2026-09-28T10:52:37Z
-- docker demos: 2026-09-28T10:52:29Z – 2026-09-28T10:53:17Z
-- kind demos: 2026-09-28T10:52:29Z – 2026-09-28T10:56:10Z
+- Run created: 2026-09-28T15:22:59Z
+- Run completed: 2026-09-28T15:33:59Z
+- shellcheck: 2026-09-28T15:26:43Z – 2026-09-28T15:26:53Z
+- gitleaks: 2026-09-28T15:26:43Z – 2026-09-28T15:26:49Z
+- docker demos: 2026-09-28T15:26:43Z – 2026-09-28T15:27:29Z
+- kind demos: 2026-09-28T15:26:42Z – 2026-09-28T15:30:30Z
 
-Note, outside the transcripts: The /dev count under `--privileged` depends on the host (it differed by one entry between earlier runs). Run 36409428008 recorded `OBS DEV_COUNT=189`. This run recorded `OBS DEV_COUNT=188`.
+Note, outside the transcripts: The /dev count under `--privileged` depends on the host. Run 36409428008 recorded `OBS DEV_COUNT=189`. Run 36412260734 recorded `OBS DEV_COUNT=188`. This run recorded `OBS DEV_COUNT=189`.
 
 Command and output below are copied from the artifacts of that run.
 
@@ -208,6 +208,8 @@ OBS APPARMOR=docker-default (enforce)
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
 
+Exit 0.
+
 ### --cap-drop ALL --cap-add NET_BIND_SERVICE
 
 Command:
@@ -261,12 +263,44 @@ OBS CAPBND_HEX=000001ffffffffff
 OBS CAPAMB_HEX=0000000000000000
 OBS CAPEFF_DECODED=0x000001ffffffffff=cap_chown,cap_dac_override,cap_dac_read_search,cap_fowner,cap_fsetid,cap_kill,cap_setgid,cap_setuid,cap_setpcap,cap_linux_immutable,cap_net_bind_service,cap_net_broadcast,cap_net_admin,cap_net_raw,cap_ipc_lock,cap_ipc_owner,cap_sys_module,cap_sys_rawio,cap_sys_chroot,cap_sys_ptrace,cap_sys_pacct,cap_sys_admin,cap_sys_boot,cap_sys_nice,cap_sys_resource,cap_sys_time,cap_sys_tty_config,cap_mknod,cap_lease,cap_audit_write,cap_audit_control,cap_setfcap,cap_mac_override,cap_mac_admin,cap_syslog,cap_wake_alarm,cap_block_suspend,cap_audit_read,cap_perfmon,cap_bpf,cap_checkpoint_restore
 OBS NONEWPRIVS=0
-OBS DEV_COUNT=188
+OBS DEV_COUNT=189
 OBS MOUNT_COUNT=11
 OBS UNPRIV_PORT_START=0
 OBS APPARMOR=unconfined
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
+
+### --cap-drop ALL --security-opt no-new-privileges
+
+Command:
+
+```
+docker run --rm --cap-drop ALL --security-opt no-new-privileges unix-lessons-pair1:local /usr/local/bin/observe.sh
+```
+
+Output:
+
+```
+OBS ID=uid=0(root) gid=0(root) groups=0(root)
+OBS CAPLINE CapInh:	0000000000000000
+OBS CAPLINE CapPrm:	0000000000000000
+OBS CAPLINE CapEff:	0000000000000000
+OBS CAPLINE CapBnd:	0000000000000000
+OBS CAPLINE CapAmb:	0000000000000000
+OBS CAPEFF_HEX=0000000000000000
+OBS CAPPRM_HEX=0000000000000000
+OBS CAPBND_HEX=0000000000000000
+OBS CAPAMB_HEX=0000000000000000
+OBS CAPEFF_DECODED=0x0000000000000000=
+OBS NONEWPRIVS=1
+OBS DEV_COUNT=15
+OBS MOUNT_COUNT=24
+OBS UNPRIV_PORT_START=0
+OBS APPARMOR=docker-default (enforce)
+OBS ID_FILE_WRITTEN=/tmp/id-proof
+```
+
+Exit 0.
 
 ### default capability set
 
@@ -298,6 +332,70 @@ OBS APPARMOR=docker-default (enforce)
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
 
+### non-root bind80
+
+Command:
+
+```
+docker run --rm --user 1000:1000 unix-lessons-pair1:local /usr/local/bin/bind80
+```
+
+Output:
+
+```
+bind 127.0.0.1:80: ok
+```
+
+Exit 0.
+
+### root bind80 --cap-drop NET_BIND_SERVICE
+
+Command:
+
+```
+docker run --rm --cap-drop NET_BIND_SERVICE --sysctl net.ipv4.ip_unprivileged_port_start=1024 unix-lessons-pair1:local /usr/local/bin/bind80
+```
+
+Output:
+
+```
+bind: Permission denied (errno=13)
+```
+
+Exit 10.
+
+### root bind80 default capabilities
+
+Command:
+
+```
+docker run --rm --sysctl net.ipv4.ip_unprivileged_port_start=1024 unix-lessons-pair1:local /usr/local/bin/bind80
+```
+
+Output:
+
+```
+bind 127.0.0.1:80: ok
+```
+
+Exit 0.
+
+### chroot --cap-drop ALL
+
+Command:
+
+```
+docker run --rm --cap-drop ALL unix-lessons-pair1:local /usr/local/bin/try-chroot
+```
+
+Output:
+
+```
+chroot: Operation not permitted (errno=1)
+```
+
+Exit 10.
+
 ## pair2-sudoers-create-pods
 
 ## Pair 2: sudoers
@@ -325,10 +423,10 @@ Sudoers policy plugin version 1.9.13p3
 ### sudo -l
 
 ```
-Matching Defaults entries for testuser on e39dbee15e7b:
+Matching Defaults entries for testuser on 2695ab1339f1:
     env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty, !requiretty, !use_pty, !lecture, editor=/usr/local/bin/editor-id
 
-User testuser may run the following commands on e39dbee15e7b:
+User testuser may run the following commands on 2695ab1339f1:
     (root) NOPASSWD: /usr/bin/less
     (root) NOPASSWD: /usr/local/bin/try-exec
     (root) NOEXEC: NOPASSWD: /usr/local/bin/try-exec-noexec
@@ -352,7 +450,7 @@ Editor id (must be the invoking user, not root):
 uid=1000(testuser) gid=1000(testuser) groups=1000(testuser)
 ```
 
-sudoedit left /etc/hostname unchanged (d1eb9ba5affdc50906c13bc7639f4c5b9aaf08bb2d26474d2249c82f7f56cda2  /etc/hostname).
+sudoedit left /etc/hostname unchanged (e9cad3685c5b4f7c4309e32b7332be52906b72a4d2cf984f26d02003bb8fbb15  /etc/hostname).
 
 | Check | Result |
 | --- | --- |
@@ -388,6 +486,196 @@ Error from server (Forbidden): error when creating "/home/runner/work/Projects/P
 | `create pods` as dev-user | no | yes |
 | `get secrets` as dev-user | no | no |
 | `get pods` as dev-user | no | no |
+
+### can-i get pods as reader
+
+Command:
+
+```
+kubectl auth can-i get pods -n team-a --as=reader
+```
+
+Output:
+
+```
+yes
+```
+
+Exit 0.
+
+### can-i list deployments as reader
+
+Command:
+
+```
+kubectl auth can-i list deployments -n team-a --as=reader
+```
+
+Output:
+
+```
+yes
+```
+
+Exit 0.
+
+### can-i get pods/log as reader
+
+Command:
+
+```
+kubectl auth can-i get pods/log -n team-a --as=reader
+```
+
+Output:
+
+```
+yes
+```
+
+Exit 0.
+
+### can-i create pods as reader
+
+Command:
+
+```
+kubectl auth can-i create pods -n team-a --as=reader
+```
+
+Output:
+
+```
+no
+```
+
+Exit 1.
+
+### can-i get secrets as reader
+
+Command:
+
+```
+kubectl auth can-i get secrets -n team-a --as=reader
+```
+
+Output:
+
+```
+no
+```
+
+Exit 1.
+
+### can-i patch configmaps as reader
+
+Command:
+
+```
+kubectl auth can-i patch configmaps -n team-a --as=reader
+```
+
+Output:
+
+```
+no
+```
+
+Exit 1.
+
+### can-i create pods/exec as reader
+
+Command:
+
+```
+kubectl auth can-i create pods/exec -n team-a --as=reader
+```
+
+Output:
+
+```
+no
+```
+
+Exit 1.
+
+### noncompliant Deployment
+
+Command:
+
+```
+kubectl apply -f /home/runner/work/Projects/Projects/unix-lessons-containers/pair2-sudoers-create-pods/manifests/deployment-noncompliant.yaml
+```
+
+Output:
+
+```
+Warning: would violate PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+deployment.apps/noncompliant created
+```
+
+Exit 0.
+
+### ReplicaSet event
+
+Command:
+
+```
+kubectl get events -n team-a -o jsonpath=\{range\ .items\[\*\]\}\{.reason\}\{\"\ \"\}\{.message\}\{\"\\n\"\}\{end\}
+```
+
+Output:
+
+```
+UnexpectedJob Saw a job that the controller did not create or forgot: snippet-cron
+UnexpectedJob Saw a job that the controller did not create or forgot: snippet-cron
+FailedCreate Error creating: pods "noncompliant-759949554b-dd4p6" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+FailedCreate Error creating: pods "noncompliant-759949554b-ptnzn" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+FailedCreate Error creating: pods "noncompliant-759949554b-h8nc2" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+FailedCreate Error creating: pods "noncompliant-759949554b-kqwdx" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+ScalingReplicaSet Scaled up replica set noncompliant-759949554b from 0 to 1
+Scheduled Successfully assigned team-a/restricted-snippet to unix-lessons-control-plane
+Pulled Container image "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e" already present on machine
+Failed Error: container has runAsNonRoot and image will run as root (pod: "restricted-snippet_team-a(03068338-150c-45d4-b90a-6c7592f9e4a8)", container: app)
+Scheduled Successfully assigned team-a/snippet-cron-m6999 to unix-lessons-control-plane
+Pulled Container image "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e" already present on machine
+Failed Error: container has runAsNonRoot and image will run as root (pod: "snippet-cron-m6999_team-a(f26296dc-acf5-485c-b55c-6f8fcddef4e4)", container: report)
+FailedCreate Error creating: pods "snippet-cron-" is forbidden: error looking up service account team-a/report-runner: serviceaccount "report-runner" not found
+SuccessfulCreate Created pod: snippet-cron-m6999
+```
+
+Exit 0.
+
+### noncompliant pods
+
+Command:
+
+```
+kubectl get pods -n team-a -l app=noncompliant --no-headers
+```
+
+Output:
+
+```
+No resources found in team-a namespace.
+```
+
+Exit 0.
+
+### readyReplicas
+
+Command:
+
+```
+kubectl get deploy -n team-a noncompliant -o jsonpath=\{.status.readyReplicas\}
+```
+
+Output:
+
+```
+```
+
+Exit 0.
 
 ### other-sa before the binding
 
@@ -431,6 +719,70 @@ Output:
 The pods "use-other-sa" is invalid: : ValidatingAdmissionPolicy 'pods-only-own-serviceaccount' with binding 'pods-only-own-serviceaccount' denied request: Pods in this namespace may only use service account default or app.
 ```
 
+### app service account pod
+
+Command:
+
+```
+kubectl create -f /home/runner/work/Projects/Projects/unix-lessons-containers/pair2-sudoers-create-pods/manifests/pod-app-sa.yaml --as=dev-user
+```
+
+Output:
+
+```
+pod/use-app-sa created
+```
+
+Exit 0.
+
+### serviceAccountName of the accepted pod
+
+Command:
+
+```
+kubectl get pod -n team-a use-app-sa -o jsonpath=\{.spec.serviceAccountName\}
+```
+
+Output:
+
+```
+app
+```
+
+Exit 0.
+
+### can-i create pods in team-b as dev-user
+
+Command:
+
+```
+kubectl auth can-i create pods -n team-b --as=dev-user
+```
+
+Output:
+
+```
+no
+```
+
+Exit 1.
+
+### admin creates other-sa pod in team-b
+
+Command:
+
+```
+kubectl apply -f /home/runner/work/Projects/Projects/unix-lessons-containers/pair2-sudoers-create-pods/manifests/pod-other-sa-team-b.yaml
+```
+
+Output:
+
+```
+pod/use-other-sa created
+```
+
+Exit 0.
+
 ## pair3-writable-script-mutable-config
 
 ## Pair 3: writable script
@@ -452,7 +804,7 @@ Non-root user: uid=1000(appuser) gid=1000(appuser) groups=1000(appuser)
 ### Writable script
 
 Mode of /opt/job.sh:
--rwxrwxrwx 1 root root 37 Sep 28 10:53 /opt/job.sh
+-rwxrwxrwx 1 root root 37 Sep 28 15:27 /opt/job.sh
 
 Script contents after the non-root append:
 ```
@@ -469,8 +821,8 @@ uid=0(root) gid=0(root) groups=0(root)
 
 ### Fixed script
 
-drwxr-xr-x 2 root root 4096 Sep 28 10:53 /opt/fixed
--rwxr-xr-x 1 root root 26 Sep 28 10:53 /opt/fixed/job.sh
+drwxr-xr-x 2 root root 4096 Sep 28 15:27 /opt/fixed
+-rwxr-xr-x 1 root root 26 Sep 28 15:27 /opt/fixed/job.sh
 
 Append exit 2:
 sh: 1: cannot create /opt/fixed/job.sh: Permission denied
@@ -530,7 +882,7 @@ Exit 1.
 Command:
 
 ```
-curl -sS -o /tmp/tmp.5w1vmAdINe -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.WHAl9Bhl9u http://127.0.0.1:58415/api/v1/namespaces/reports/configmaps/report-script
+curl -sS -o /tmp/tmp.sEsAIApmqD -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.R1bkVbfw6d http://127.0.0.1:51623/api/v1/namespaces/reports/configmaps/report-script
 ```
 
 Output:
@@ -542,9 +894,9 @@ Output:
   "metadata": {
     "name": "report-script",
     "namespace": "reports",
-    "uid": "3bc6d965-00e6-4a59-9c55-183e77aa92f4",
-    "resourceVersion": "846",
-    "creationTimestamp": "2026-09-28T10:55:53Z",
+    "uid": "d0adf146-e0f4-455a-ba64-31ebcea74d34",
+    "resourceVersion": "876",
+    "creationTimestamp": "2026-09-28T15:30:14Z",
     "annotations": {
       "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"run.sh\":\"#!/bin/sh\\necho SCRIPT_VERSION=one\\n\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"report-script\",\"namespace\":\"reports\"}}\n"
     },
@@ -553,7 +905,7 @@ Output:
         "manager": "kubectl-client-side-apply",
         "operation": "Update",
         "apiVersion": "v1",
-        "time": "2026-09-28T10:55:53Z",
+        "time": "2026-09-28T15:30:14Z",
         "fieldsType": "FieldsV1",
         "fieldsV1": {
           "f:data": {},
@@ -569,7 +921,7 @@ Output:
         "manager": "curl",
         "operation": "Update",
         "apiVersion": "v1",
-        "time": "2026-09-28T10:55:57Z",
+        "time": "2026-09-28T15:30:18Z",
         "fieldsType": "FieldsV1",
         "fieldsV1": {
           "f:data": {
@@ -606,7 +958,7 @@ SCRIPT_VERSION=two
 Command:
 
 ```
-kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file /tmp/tmp.sGZiuQmRZH
+kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file /tmp/tmp.7uWQNytDol
 ```
 
 Output:
@@ -620,7 +972,7 @@ The ConfigMap "report-script-v7" is invalid: data: Forbidden: field is immutable
 Command:
 
 ```
-curl -sS -o /tmp/tmp.tvwQXAndEF -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.sGZiuQmRZH http://127.0.0.1:40021/api/v1/namespaces/reports/configmaps/report-script-v7
+curl -sS -o /tmp/tmp.hUo84S5TnD -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.7uWQNytDol http://127.0.0.1:58575/api/v1/namespaces/reports/configmaps/report-script-v7
 ```
 
 Output:
@@ -693,7 +1045,7 @@ ls -l /var/run/docker.sock
 Output:
 
 ```
-srw-rw---- 1 root docker 0 Sep 28 10:52 /var/run/docker.sock
+srw-rw---- 1 root docker 0 Sep 28 15:26 /var/run/docker.sock
 ```
 
 ### stat
@@ -738,6 +1090,21 @@ Output:
 runner adm users docker systemd-journal
 ```
 
+### sudo -n true
+
+Command:
+
+```
+sudo -n true
+```
+
+Output:
+
+```
+```
+
+Exit 0.
+
 ## Pair 4: socket hostPath admission
 
 ### Pod Security socket-baseline
@@ -767,4 +1134,3 @@ Output:
 ```
 Error from server (Forbidden): error when creating "/home/runner/work/Projects/Projects/unix-lessons-containers/pair4-docker-group-socket/manifests/socket-pod.yaml": pods "docker-socket" is forbidden: violates PodSecurity "restricted:latest": allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), restricted volume types (volume "dockersock" uses restricted volume type "hostPath"), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
 ```
-
