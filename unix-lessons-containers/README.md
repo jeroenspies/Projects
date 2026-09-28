@@ -6,7 +6,7 @@ Background research and demos built with AI assistants, designed and reviewed by
 
 GitHub Actions runs them. The workflow is [`../.github/workflows/unix-lessons-containers.yml`](../.github/workflows/unix-lessons-containers.yml). It runs on a push to `main` that changes this directory or that workflow file, and when started manually. The job summary for each run keeps the before/after table. Each pair also writes a short transcript: the command that ran, in a code block, and the output that command printed, in a code block. The same transcript is saved as `summaries/<pair>.md` and uploaded as a workflow artifact. RESULTS.md in this directory keeps the transcripts captured from a completed run. Workflow logs and uploaded artifacts are removed after their retention period.
 
-Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md).
+Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md). RESULTS.md holds the transcripts for the claims in each What this shows block. Other assertions under What the demo proves are enforced by the scripts (the run fails otherwise) and printed only in the job summary, except `sudo -n true` on the runner: that exit code is recorded and the job continues either way.
 
 ## Running locally
 
@@ -178,10 +178,10 @@ Docker: a root loop runs `/opt/job.sh` once a second. The file is mode `0777`. `
 kind, namespace `reports` with `enforce=restricted`:
 
 - CronJob `nightly-report` uses the tag `docker.io/library/busybox:1.37.0` and ConfigMap `report-script`. A Job created with `kubectl create job --from=cronjob/nightly-report` prints `SCRIPT_VERSION=one`. The schedule is not waited on.
-- User `cm-editor` has only the `patch` verb on configmaps (`get` and `update` are `no`). `kubectl patch` as that user is recorded separately: the kubectl client GETs the object before it PATCHes, so a get-less user is rejected by the client. The demo then sends `PATCH` with `Impersonate-User: cm-editor` and no GET. That request succeeds. The next Job prints `SCRIPT_VERSION=two`.
+- User `cm-editor` has only the `patch` verb on configmaps (`get` and `update` are `no`). `kubectl patch` as that user is recorded separately: kubectl GETs the object before it PATCHes, and the API server denies that GET. The demo then sends `PATCH` with `Impersonate-User: cm-editor` and no GET. That request succeeds. The next Job prints `SCRIPT_VERSION=two`.
 - ConfigMap `report-script-v7` is `immutable: true`. A patch is rejected, including a patch from `cm-editor`. CronJob `nightly-report-fixed` pins `docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e`, uses that ConfigMap, runs as uid 65534, drops all capabilities, sets `allowPrivilegeEscalation: false` and `readOnlyRootFilesystem: true`, and sets `automountServiceAccountToken: false` on ServiceAccount `report-runner`. Its Job prints `SCRIPT_VERSION=seven`.
 
-The tag is not retargeted in a registry. The digest in the fixed spec is the property under test.
+The tag is not retargeted in a registry. The digest in the fixed spec is recorded; the demo does not test it against a moved tag.
 
 **Fix.** `immutable: true` and a new ConfigMap name per version. Pin images by digest. Run the namespace at restricted Pod Security, with its own ServiceAccount and no API token unless the process calls the API. On a host, root-owned mode `0755` in a root-owned directory.
 
