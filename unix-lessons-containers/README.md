@@ -1,6 +1,6 @@
 # Unix lessons, checked in containers
 
-Four small demos. Old Unix lessons about privileges come back directly in containers and Kubernetes. Each one shows a **difference in privileges**: what is allowed, what is denied, and which fix narrows the permission. They do not escape a container, mount a runtime socket, scan a network, or write a payload.
+Four small demos. Old Unix lessons about privileges come back in containers and Kubernetes. Each one shows a **difference in privileges**: what is allowed, what is denied, and which fix narrows the permission. They do not escape a container, mount a runtime socket, scan a network, or write a payload.
 
 Background research and demos built with AI assistants, designed and reviewed by me.
 
@@ -90,7 +90,7 @@ kind delete cluster --name unix-lessons
 
 ### What this shows
 
-`chroot` changes pathname lookup; it is not a container boundary. `--privileged` is the runtime form of that shortcut: `CapEff` includes `cap_sys_admin`, and `/dev` has many more entries than the other runs. The default capability set and `--cap-drop ALL` both record `OBS DEV_COUNT=15`; the privileged device count depends on the host. Leaving `privileged` unset, and dropping capabilities, is what keeps that narrow set.
+`chroot` is not a container boundary (chroot(2)); the demo only shows the call needs `CAP_SYS_CHROOT`. The container equivalent of reaching for a shortcut is `--privileged`: `CapEff` includes `cap_sys_admin`, and `/dev` has many more entries than the other runs. The default capability set and `--cap-drop ALL` both record `OBS DEV_COUNT=15`; the privileged device count depends on the host. Leaving `privileged` unset keeps `/dev` at those 15 entries; dropping capabilities is what narrows `CapEff`.
 
 **Unix lesson.** `chroot(2)` changes one ingredient of pathname lookup. It is not a security boundary. Only a process with `CAP_SYS_CHROOT` may call it. `CAP_SYS_ADMIN` is the overloaded "new root" capability (it includes `mount(2)`).
 
@@ -119,7 +119,7 @@ The comparison that still needs the capability is a **root** process after `--sy
 
 ### What this shows
 
-A sudoers rule that names one program still lets that program run others, unless `NOEXEC` blocks the exec. The same grant in Kubernetes is `create pods`: after the RoleBinding, `dev-user` may create pods and still may not get secrets. PodSecurity `restricted` rejects the privileged pod. Once bound, the ValidatingAdmissionPolicy `pods-only-own-serviceaccount` rejects a pod that uses another ServiceAccount.
+A sudoers rule that names one program still lets that program run others. `NOEXEC` blocked that exec in this sudo build (EACCES), but a root process can still rewrite files. The same grant in Kubernetes is `create pods`. After the RoleBinding, `dev-user` still may not `get secrets`, but creates a pod that runs as ServiceAccount `other-sa`. The pod passes PodSecurity `restricted`, because restricted does not check which ServiceAccount a pod uses. Only after the ValidatingAdmissionPolicy `pods-only-own-serviceaccount` is bound is that pod rejected. PodSecurity `restricted` rejects a privileged pod.
 
 **Unix lesson.** After sudo runs a program, that program can run other programs. A rule that names only `/usr/bin/less` is still a broad grant. sudoers offers `NOEXEC` (on Linux, a seccomp filter or the `sudo_noexec` preload, depending on the build) and `sudoedit` (the editor runs as the invoking user on a temporary copy). `NOEXEC` is not a complete answer: a root process can still rewrite files. Never point `sudoedit` at a file in a directory the user can write.
 
@@ -165,7 +165,7 @@ spec:
 
 ### What this shows
 
-A root loop runs a mode `0777` script that a non-root user can change, and `/tmp/proof` then contains `uid=0(root)`; the same append is denied on the root-owned mode `0755` file. On the cluster, `cm-editor` may patch a ConfigMap and may not get it, so `kubectl patch` fails on the client's GET, while a direct API merge-patch with `Impersonate-User` returns HTTP 200 and the next Job prints `SCRIPT_VERSION=two`. An immutable ConfigMap rejects the patch, and the digest-pinned image runs `SCRIPT_VERSION=seven`.
+A root loop runs a mode `0777` script that a non-root user can change, and `/tmp/proof` then contains `uid=0(root)`; the same append is denied on the root-owned mode `0755` file. On the cluster, `cm-editor` may patch a ConfigMap and may not get it, so `kubectl patch` fails on the client's GET, while the same change sent directly to the API as `cm-editor` (the demo impersonates that user from the admin kubeconfig; a real `cm-editor` sends the same PATCH with its own credentials) returns HTTP 200 and the next Job prints `SCRIPT_VERSION=two`. Withholding `get` does not stop a user who has `patch`. An immutable ConfigMap rejects the patch. The fixed CronJob pins the image by digest and uses that ConfigMap, and its Job prints `SCRIPT_VERSION=seven`. The demo does not move the tag.
 
 **Unix lesson.** The dangerous part is not the scheduler. It is a file that a stronger identity executes and a weaker identity can change. Mode `0777` on a root-run script is that pattern. The fix on a single host is `root:root` mode `0755` in a directory only root can write.
 
@@ -191,7 +191,7 @@ The tag is not retargeted in a registry. The digest in the fixed spec is the pro
 
 ### What this shows
 
-Membership of the `docker` group is control of the daemon. The runner's `id` includes that group, and the socket is `srw-rw----` (`660`), owned by `root:docker`. The same shortcut in Kubernetes is a pod that mounts the socket with hostPath. PodSecurity `baseline` rejects that volume, and `restricted` rejects it as well. The pod is never stored.
+Membership of the `docker` group is control of the daemon. The runner's `id` includes that group, and the socket is `srw-rw----` (`660`), owned by `root:docker`. The same shortcut in Kubernetes is a pod that mounts the socket with hostPath. PodSecurity `baseline` rejects that volume, and `restricted` rejects it as well. The pod is never stored. This pair records metadata and an admission rejection; it does not use the socket.
 
 **Unix lesson.** Membership of the `docker` group is root-level control of the daemon.
 
