@@ -72,13 +72,13 @@ summary "### developer-readonly Role"
 summary_blank
 expect_ok "developer-readonly Role" kubectl apply -f "${SNIP}/role-developer-readonly.yaml"
 expect_ok "reader RoleBinding" kubectl apply -f "${MAN}/rolebinding-reader.yaml"
-reader_get=$(can_i get pods -n team-a --as=reader)
-reader_list=$(can_i list deployments -n team-a --as=reader)
-reader_logs=$(can_i get pods/log -n team-a --as=reader)
-reader_create=$(can_i create pods -n team-a --as=reader)
-reader_secrets=$(can_i get secrets -n team-a --as=reader)
-reader_patch=$(can_i patch configmaps -n team-a --as=reader)
-reader_exec=$(can_i create pods/exec -n team-a --as=reader)
+reader_get=$(capture_can_i "can-i get pods as reader" get pods -n team-a --as=reader)
+reader_list=$(capture_can_i "can-i list deployments as reader" list deployments -n team-a --as=reader)
+reader_logs=$(capture_can_i "can-i get pods/log as reader" get pods/log -n team-a --as=reader)
+reader_create=$(capture_can_i "can-i create pods as reader" create pods -n team-a --as=reader)
+reader_secrets=$(capture_can_i "can-i get secrets as reader" get secrets -n team-a --as=reader)
+reader_patch=$(capture_can_i "can-i patch configmaps as reader" patch configmaps -n team-a --as=reader)
+reader_exec=$(capture_can_i "can-i create pods/exec as reader" create pods/exec -n team-a --as=reader)
 [[ "$reader_get" == "yes" ]] || fail "reader cannot get pods"
 [[ "$reader_list" == "yes" ]] || fail "reader cannot list deployments"
 [[ "$reader_logs" == "yes" ]] || fail "reader cannot get pod logs"
@@ -104,6 +104,7 @@ if ! grep -E -q 'Warning:|PodSecurity|restricted' "${OK_LOG}"; then
   cat "${OK_LOG}" >&2
   fail "applying the noncompliant Deployment did not produce a PSA warning"
 fi
+transcript_cmd_result "noncompliant Deployment" "${LAST_CMD}" "${OK_LOG}" "0"
 summary "Apply output:"
 summary '```'
 sed -n '1,25p' "${OK_LOG}" | while IFS= read -r line; do
@@ -114,9 +115,15 @@ summary_blank
 
 found_event=no
 event_line=""
+event_log=$(mktemp)
+event_rc=0
+event_cmd=$(format_cmd kubectl get events -n team-a -o jsonpath='{range .items[*]}{.reason}{" "}{.message}{"\n"}{end}')
 for _ in $(seq 1 30); do
-  event_line=$(kubectl get events -n team-a -o jsonpath='{range .items[*]}{.reason}{" "}{.message}{"\n"}{end}' \
-    | grep -E 'PodSecurity|restricted|privileged' | head -n 1 || true)
+  set +e
+  kubectl get events -n team-a -o jsonpath='{range .items[*]}{.reason}{" "}{.message}{"\n"}{end}' >"${event_log}" 2>&1
+  event_rc=$?
+  set -e
+  event_line=$(grep -E 'PodSecurity|restricted|privileged' "${event_log}" | head -n 1 || true)
   if [[ -n "$event_line" ]]; then
     found_event=yes
     break
@@ -128,6 +135,9 @@ ready=$(kubectl get deploy -n team-a noncompliant -o jsonpath='{.status.readyRep
 [[ "$pod_count" == "0" ]] || fail "noncompliant Deployment created ${pod_count} pod(s)"
 [[ -z "$ready" || "$ready" == "0" ]] || fail "noncompliant Deployment has readyReplicas=${ready}"
 [[ "$found_event" == "yes" ]] || fail "no ReplicaSet/pod event mentioned PodSecurity"
+transcript_cmd_result "ReplicaSet event" "${event_cmd}" "${event_log}" "${event_rc}"
+transcript_exec "noncompliant pods" kubectl get pods -n team-a -l app=noncompliant --no-headers
+transcript_exec "readyReplicas" kubectl get deploy -n team-a noncompliant -o jsonpath='{.status.readyReplicas}'
 summary "Pods with label app=noncompliant: ${pod_count}. readyReplicas: ${ready:-0}."
 summary "Event: \`${event_line}\`"
 summary_blank
@@ -197,8 +207,11 @@ fi
 
 expect_ok "app service account pod after the binding" \
   kubectl create -f "${MAN}/pod-app-sa.yaml" --as=dev-user
+transcript_cmd_result "app service account pod" "${LAST_CMD}" "${OK_LOG}" "0"
 app_sa=$(kubectl get pod -n team-a use-app-sa -o jsonpath='{.spec.serviceAccountName}')
 [[ "$app_sa" == "app" ]] || fail "allowed pod used service account ${app_sa}"
+transcript_exec "serviceAccountName of the accepted pod" \
+  kubectl get pod -n team-a use-app-sa -o jsonpath='{.spec.serviceAccountName}'
 summary "A pod using service account \`app\` is still accepted."
 summary_blank
 
@@ -213,10 +226,11 @@ automountServiceAccountToken: false
 EOF
 # dev-user's RoleBinding is only in team-a. The admin apply shows the policy binding
 # does not select team-b.
-team_b_user=$(can_i create pods -n team-b --as=dev-user)
+team_b_user=$(capture_can_i "can-i create pods in team-b as dev-user" create pods -n team-b --as=dev-user)
 [[ "$team_b_user" == "no" ]] || fail "dev-user can create pods in team-b"
 expect_ok "admin creates other-sa pod in team-b" \
   kubectl apply -f "${MAN}/pod-other-sa-team-b.yaml"
+transcript_cmd_result "admin creates other-sa pod in team-b" "${LAST_CMD}" "${OK_LOG}" "0"
 summary "dev-user create pods in team-b: ${team_b_user}. The same pod shape is accepted in team-b because the binding's namespace selector is team-a only."
 summary_blank
 

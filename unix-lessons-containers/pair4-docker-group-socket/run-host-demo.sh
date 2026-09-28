@@ -91,6 +91,7 @@ set +e
 sudo -n true >"${sudo_out}" 2>&1
 sudo_rc=$?
 set -e
+transcript_cmd_result "sudo -n true" "$(format_cmd sudo -n true)" "${sudo_out}" "${sudo_rc}"
 summary "\`sudo -n true\` exit ${sudo_rc}."
 if [[ "${sudo_rc}" -eq 0 ]]; then
   summary "The runner user can already become root via passwordless sudo. A container breakout on this VM would not show a new privilege."

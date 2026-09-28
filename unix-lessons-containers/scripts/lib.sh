@@ -129,6 +129,54 @@ transcript_block() {
   transcript_blank
 }
 
+# transcript_cmd_result HEADING COMMAND FILE EXIT
+# COMMAND already ran. FILE is its captured combined output. EXIT is that status.
+transcript_cmd_result() {
+  local heading="$1"
+  local command="$2"
+  local file="$3"
+  local rc="$4"
+  transcript_block "${heading}" "${command}" "${file}"
+  transcript "Exit ${rc}."
+  transcript_blank
+}
+
+# transcript_exec HEADING COMMAND...
+# Runs COMMAND, then records the command, combined output, and exit code.
+# A non-zero status is recorded. It does not fail the demo.
+transcript_exec() {
+  local heading="$1"
+  shift
+  local log rc cmd_s
+  cmd_s=$(format_cmd "$@")
+  log=$(mktemp)
+  set +e
+  "$@" >"${log}" 2>&1
+  rc=$?
+  set -e
+  transcript_cmd_result "${heading}" "${cmd_s}" "${log}" "${rc}"
+}
+
+# capture_can_i HEADING ARGS...
+# Same yes/no result as can_i. Also records the command, output, and exit code.
+capture_can_i() {
+  local heading="$1"
+  shift
+  local log rc cmd_s out
+  cmd_s=$(format_cmd kubectl auth can-i "$@")
+  log=$(mktemp)
+  set +e
+  kubectl auth can-i "$@" >"${log}" 2>&1
+  rc=$?
+  set -e
+  transcript_cmd_result "${heading}" "${cmd_s}" "${log}" "${rc}"
+  out=$(tr -d '[:space:]' < "${log}")
+  if [[ "$out" != "yes" && "$out" != "no" ]]; then
+    fail "unexpected 'kubectl auth can-i $*' output (exit ${rc}): ${out}"
+  fi
+  printf '%s' "$out"
+}
+
 summary_file() {
   local file="$1"
   [[ -f "$file" ]] || fail "missing summary file: $file"

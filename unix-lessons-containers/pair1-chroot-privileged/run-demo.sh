@@ -73,6 +73,8 @@ nnp_out=$(mktemp)
 run_cmd 0 "${drop_out}" --cap-drop ALL -- \
   /usr/local/bin/observe.sh
 transcript_block "--cap-drop ALL" "${LAST_CMD}" "${drop_out}"
+transcript "Exit 0."
+transcript_blank
 run_cmd 0 "${net_out}" --cap-drop ALL --cap-add NET_BIND_SERVICE -- \
   /usr/local/bin/observe.sh
 transcript_block "--cap-drop ALL --cap-add NET_BIND_SERVICE" "${LAST_CMD}" "${net_out}"
@@ -81,6 +83,7 @@ run_cmd 0 "${priv_out}" --privileged -- \
 transcript_block "--privileged" "${LAST_CMD}" "${priv_out}"
 run_cmd 0 "${nnp_out}" --cap-drop ALL --security-opt no-new-privileges -- \
   /usr/local/bin/observe.sh
+transcript_cmd_result "--cap-drop ALL --security-opt no-new-privileges" "${LAST_CMD}" "${nnp_out}" "0"
 
 drop_dec=$(obs_get "${drop_out}" CAPEFF_DECODED)
 net_dec=$(obs_get "${net_out}" CAPEFF_DECODED)
@@ -172,6 +175,7 @@ transcript_block "default capability set" "${LAST_CMD}" "${default_out}"
 default_sysctl=$(obs_get "${default_out}" UNPRIV_PORT_START)
 [[ "${default_sysctl}" == "0" ]] || fail "default ip_unprivileged_port_start was ${default_sysctl}, expected 0"
 run_cmd 0 "${nonroot_bind}" --user 1000:1000 -- /usr/local/bin/bind80
+transcript_cmd_result "non-root bind80" "${LAST_CMD}" "${nonroot_bind}" "0"
 run_cmd 0 "${nonroot_caps}" --user 1000:1000 --cap-add NET_BIND_SERVICE -- /usr/local/bin/observe.sh
 nonroot_eff=$(obs_get "${nonroot_caps}" CAPEFF_HEX)
 nonroot_amb=$(obs_get "${nonroot_caps}" CAPAMB_HEX)
@@ -184,11 +188,13 @@ root_deny=$(mktemp)
 root_allow=$(mktemp)
 sysctl_args=(--sysctl net.ipv4.ip_unprivileged_port_start=1024)
 run_cmd 10 "${root_deny}" --cap-drop NET_BIND_SERVICE "${sysctl_args[@]}" -- /usr/local/bin/bind80
+transcript_cmd_result "root bind80 --cap-drop NET_BIND_SERVICE" "${LAST_CMD}" "${root_deny}" "10"
 if ! grep -q 'errno=13' "${root_deny}"; then
   cat "${root_deny}" >&2
   fail "root bind without NET_BIND_SERVICE was denied, but not with errno 13 (EACCES)"
 fi
 run_cmd 0 "${root_allow}" "${sysctl_args[@]}" -- /usr/local/bin/bind80
+transcript_cmd_result "root bind80 default capabilities" "${LAST_CMD}" "${root_allow}" "0"
 root_deny_line=$(grep 'bind:' "${root_deny}" | head -n 1)
 
 summary "### Port 80"
@@ -208,6 +214,7 @@ summary_blank
 chroot_deny=$(mktemp)
 chroot_allow=$(mktemp)
 run_cmd 10 "${chroot_deny}" --cap-drop ALL -- /usr/local/bin/try-chroot
+transcript_cmd_result "chroot --cap-drop ALL" "${LAST_CMD}" "${chroot_deny}" "10"
 
 chroot_positive="syscall returned success under the default Docker profile, then the process exited"
 set +e
