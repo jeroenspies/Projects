@@ -28,11 +28,19 @@ summary_blank
 expect_denied 'PodSecurity|restricted|privileged' \
   "privileged pod" \
   kubectl apply -f "${MAN}/privileged-pod.yaml"
-transcript_block "Pod Security" "${LAST_CMD}" "${DENIED_LOG}"
-if kubectl get pod -n team-a privileged-rejected >/dev/null 2>&1; then
+transcript_cmd_result "Pod Security" "${LAST_CMD}" "${DENIED_LOG}" "${DENIED_RC}"
+rejected_log=$(mktemp)
+rejected_cmd=$(format_cmd kubectl get pod privileged-rejected -n team-a)
+set +e
+kubectl get pod privileged-rejected -n team-a >"${rejected_log}" 2>&1
+rejected_rc=$?
+set -e
+if [[ "$rejected_rc" -eq 0 ]]; then
   kubectl delete pod -n team-a privileged-rejected --wait=false
   fail "privileged pod object exists after a rejected apply"
 fi
+grep -q 'NotFound' "${rejected_log}" || fail "privileged pod get was not NotFound"
+transcript_cmd_result "privileged pod" "${rejected_cmd}" "${rejected_log}" "${rejected_rc}"
 summary "No privileged pod object was stored."
 summary_blank
 
@@ -172,12 +180,13 @@ summary_blank
 
 summary "### create pods can select another ServiceAccount"
 summary_blank
-# The policy object may already exist from snippet validation. Without a binding it does not enforce.
+# Snippet validation may already have created the policy. This section starts without it.
 kubectl delete validatingadmissionpolicybinding pods-only-own-serviceaccount --ignore-not-found
+kubectl delete validatingadmissionpolicy pods-only-own-serviceaccount --ignore-not-found
 # create, not apply: kubectl apply GETs the pod first, and this Role cannot get pods.
-expect_ok "other-sa pod before the binding" \
+expect_ok "other-sa pod before the policy" \
   kubectl create -f "${MAN}/pod-other-sa.yaml" --as=dev-user
-transcript_cmd_result "other-sa before the binding" "${LAST_CMD}" "${OK_LOG}" "0"
+transcript_cmd_result "other-sa before the policy" "${LAST_CMD}" "${OK_LOG}" "0"
 sa_name=$(kubectl get pod -n team-a use-other-sa -o jsonpath='{.spec.serviceAccountName}')
 [[ "$sa_name" == "other-sa" ]] || fail "pod service account was ${sa_name}"
 if ! kubectl wait -n team-a --for=condition=Ready pod/use-other-sa --timeout=180s; then
@@ -191,6 +200,24 @@ kubectl delete pod -n team-a use-other-sa --wait=true
 summary "### ValidatingAdmissionPolicy"
 summary_blank
 expect_ok "ValidatingAdmissionPolicy" kubectl apply -f "${SNIP}/vap.yaml"
+vap_obj=$(mktemp)
+vap_obj_cmd=$(format_cmd kubectl get validatingadmissionpolicy pods-only-own-serviceaccount)
+set +e
+kubectl get validatingadmissionpolicy pods-only-own-serviceaccount >"${vap_obj}" 2>&1
+vap_obj_rc=$?
+set -e
+[[ "$vap_obj_rc" -eq 0 ]] || fail "ValidatingAdmissionPolicy get exited ${vap_obj_rc}"
+grep -q 'pods-only-own-serviceaccount' "${vap_obj}" || fail "ValidatingAdmissionPolicy was not found"
+transcript_cmd_result "ValidatingAdmissionPolicy" "${vap_obj_cmd}" "${vap_obj}" "${vap_obj_rc}"
+vap_bind=$(mktemp)
+vap_bind_cmd=$(format_cmd kubectl get validatingadmissionpolicybinding pods-only-own-serviceaccount)
+set +e
+kubectl get validatingadmissionpolicybinding pods-only-own-serviceaccount >"${vap_bind}" 2>&1
+vap_bind_rc=$?
+set -e
+[[ "$vap_bind_rc" -ne 0 ]] || fail "ValidatingAdmissionPolicyBinding already exists"
+grep -q 'NotFound' "${vap_bind}" || fail "binding get was not NotFound"
+transcript_cmd_result "ValidatingAdmissionPolicyBinding" "${vap_bind_cmd}" "${vap_bind}" "${vap_bind_rc}"
 # Re-create once more so the summary shows the object alone still allows the request.
 expect_ok "other-sa pod while the policy is unbound" \
   kubectl create -f "${MAN}/pod-other-sa.yaml" --as=dev-user

@@ -23,7 +23,7 @@ reject_socket() {
   expect_denied 'hostPath|PodSecurity|baseline|restricted' \
     "docker.sock hostPath in ${ns}" \
     kubectl apply --dry-run=server -n "$ns" -f "${DIR}/manifests/socket-pod.yaml"
-  transcript_block "Pod Security ${ns}" "${LAST_CMD}" "${DENIED_LOG}"
+  transcript_cmd_result "Pod Security ${ns}" "${LAST_CMD}" "${DENIED_LOG}" "${DENIED_RC}"
   if kubectl get pod -n "$ns" docker-socket >/dev/null 2>&1; then
     kubectl delete pod -n "$ns" docker-socket --wait=false
     fail "docker-socket pod was created in ${ns}"

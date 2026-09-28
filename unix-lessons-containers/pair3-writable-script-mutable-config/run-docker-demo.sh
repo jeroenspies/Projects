@@ -22,7 +22,7 @@ set +e
 docker run --rm "${IMAGE}" /usr/local/bin/run-inside.sh 2>&1 | tee "${log}" >/dev/null
 rc=${PIPESTATUS[0]}
 set -e
-transcript_block "writable script" "${cmd}" "${log}"
+transcript_cmd_result "writable script" "${cmd}" "${log}" "${rc}"
 summary_file "${log}"
 summary_blank
 if [[ "$rc" -ne 0 ]]; then

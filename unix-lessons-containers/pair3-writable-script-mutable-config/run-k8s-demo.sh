@@ -68,8 +68,9 @@ run_from_cronjob() {
     cmd_s=$(format_cmd kubectl logs -n reports "job/${job}")
     set +e
     kubectl logs -n reports "job/${job}" 2>&1 | tee "${logf}" >/dev/null
+    logs_rc=${PIPESTATUS[0]}
     set -e
-    transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
+    transcript_cmd_result "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}" "${logs_rc}"
     fail "job ${job} did not complete"
   fi
   logf=$(mktemp)
@@ -78,7 +79,7 @@ run_from_cronjob() {
   kubectl logs -n reports "job/${job}" 2>&1 | tee "${logf}" >/dev/null
   logs_rc=${PIPESTATUS[0]}
   set -e
-  transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
+  transcript_cmd_result "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}" "${logs_rc}"
   if [[ "${logs_rc}" -ne 0 ]]; then
     fail "kubectl logs for job ${job} exited ${logs_rc}"
   fi
@@ -138,12 +139,43 @@ transcript_blank
 
 expect_ok "fixed CronJob" kubectl apply -f "${MAN}/cronjob-fixed.yaml"
 image_log=$(mktemp)
-fixed_image=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' | tee "${image_log}")
-transcript_block "version-seven image" \
-  "$(format_cmd kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')" \
-  "${image_log}"
-mutable_image=$(kubectl get cronjob -n reports nightly-report -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
-sa_name=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.serviceAccountName}')
+image_jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}'
+set +e
+kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${image_jsonpath}" >"${image_log}" 2>&1
+image_rc=$?
+set -e
+fixed_image=$(tr -d '[:space:]' < "${image_log}")
+[[ "$image_rc" -eq 0 ]] || fail "reading nightly-report-fixed image exited ${image_rc}"
+transcript_cmd_result "version-seven image" \
+  "$(format_cmd kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${image_jsonpath}")" \
+  "${image_log}" "${image_rc}"
+record_cron_fields() {
+  local cron="$1"
+  local log jsonpath rc
+  jsonpath='image={.spec.jobTemplate.spec.template.spec.containers[0].image}{"\n"}configMap={.spec.jobTemplate.spec.template.spec.volumes[0].configMap.name}{"\n"}serviceAccountName={.spec.jobTemplate.spec.template.spec.serviceAccountName}{"\n"}'
+  log=$(mktemp)
+  set +e
+  kubectl get cronjob -n reports "$cron" -o "jsonpath=${jsonpath}" >"${log}" 2>&1
+  rc=$?
+  set -e
+  [[ "$rc" -eq 0 ]] || fail "reading cronjob ${cron} fields exited ${rc}"
+  CRON_IMAGE=$(sed -n 's/^image=//p' "$log" | head -n 1)
+  CRON_CM=$(sed -n 's/^configMap=//p' "$log" | head -n 1)
+  CRON_SA=$(sed -n 's/^serviceAccountName=//p' "$log" | head -n 1)
+  transcript_cmd_result "cronjob ${cron}" \
+    "$(format_cmd kubectl get cronjob -n reports "$cron" -o "jsonpath=${jsonpath}")" \
+    "$log" "$rc"
+}
+record_cron_fields nightly-report
+mutable_image="${CRON_IMAGE}"
+[[ "$mutable_image" == "${BUSYBOX_TAG}" ]] || fail "mutable image is ${mutable_image}"
+[[ "$CRON_CM" == "report-script" ]] || fail "nightly-report configmap is ${CRON_CM}"
+[[ "$CRON_SA" == "report-runner" ]] || fail "nightly-report service account is ${CRON_SA}"
+record_cron_fields nightly-report-fixed
+[[ "$CRON_IMAGE" == "$fixed_image" ]] || fail "fixed image fields are ${CRON_IMAGE}"
+[[ "$CRON_CM" == "report-script-v7" ]] || fail "fixed configmap is ${CRON_CM}"
+sa_name="${CRON_SA}"
+cm_name="${CRON_CM}"
 automount_log=$(mktemp)
 automount_jsonpath='{.spec.jobTemplate.spec.template.spec.automountServiceAccountToken}'
 set +e
@@ -151,7 +183,6 @@ kubectl get cronjob -n reports nightly-report-fixed -o "jsonpath=${automount_jso
 automount_rc=$?
 set -e
 automount=$(tr -d '[:space:]' < "${automount_log}")
-cm_name=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.volumes[0].configMap.name}')
 sc_log=$(mktemp)
 sc_jsonpath='runAsUser={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.runAsUser}{"\n"}readOnlyRootFilesystem={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem}{"\n"}allowPrivilegeEscalation={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation}{"\n"}drop={.spec.jobTemplate.spec.template.spec.containers[0].securityContext.capabilities.drop[0]}{"\n"}'
 set +e
