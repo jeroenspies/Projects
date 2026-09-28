@@ -1,0 +1,26 @@
+# Pod wrapper around the restricted securityContext sketch.
+# Original image field: registry.example/app@sha256:...
+# Replaced with a digest-pinned busybox so the manifest can be submitted.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: restricted-snippet
+  namespace: team-a
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+  - name: app
+    image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    securityContext:
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop: ["ALL"]
+        # Port <1024 as non-root: modern runtimes (Docker >= 20.10, containerd 2.x)
+        # set net.ipv4.ip_unprivileged_port_start=0, so no capability is needed.
+        # Adding a capability does not work for non-root by itself (no ambient
+        # caps; no_new_privs blocks file caps). Alternative: listen above 1024
+        # and map the Service to 80/443.

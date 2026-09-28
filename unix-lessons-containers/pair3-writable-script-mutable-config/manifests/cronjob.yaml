@@ -1,0 +1,42 @@
+# Mutable tag and mutable ConfigMap. The pod itself still meets restricted PSA,
+# so the demonstrated privilege is who can change the script. This is not a write to the node.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report
+  namespace: reports
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: report-runner
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: report
+            image: docker.io/library/busybox:1.37.0
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "/opt/script/run.sh"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+            - name: script
+              mountPath: /opt/script
+              readOnly: true
+          restartPolicy: Never
+          volumes:
+          - name: script
+            configMap:
+              name: report-script

@@ -1,0 +1,10 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: developer-readonly, namespace: team-a }
+rules:
+- apiGroups: ["", "apps", "batch"]
+  resources: ["pods", "pods/log", "deployments", "jobs", "cronjobs", "configmaps"]
+  verbs: ["get", "list", "watch"]
+# configmaps and pods/log can contain sensitive data; consider omitting them.
+# Intentionally omitted: secrets, pods/exec, create/patch, namespace patch,
+# escalate/bind/impersonate, serviceaccounts/token.

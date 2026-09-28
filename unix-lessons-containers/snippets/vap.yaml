@@ -1,0 +1,16 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata: { name: pods-only-own-serviceaccount }
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE"]
+      resources: ["pods"]
+  validations:
+  - expression: "!has(object.spec.serviceAccountName) || object.spec.serviceAccountName in ['default', 'app']"
+    message: "Pods in this namespace may only use service account default or app."
+# A ValidatingAdmissionPolicyBinding with validationActions: [Deny] and a
+# namespaceSelector is required. See vap-binding.yaml in this directory.

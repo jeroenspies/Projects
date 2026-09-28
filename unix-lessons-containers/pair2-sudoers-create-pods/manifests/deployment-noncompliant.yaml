@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: noncompliant
+  namespace: team-a
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: noncompliant
+  template:
+    metadata:
+      labels:
+        app: noncompliant
+    spec:
+      containers:
+      - name: app
+        image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+        command: ["sleep", "3600"]
+        securityContext:
+          privileged: true

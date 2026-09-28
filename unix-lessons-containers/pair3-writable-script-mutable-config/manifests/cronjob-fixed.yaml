@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nightly-report-fixed
+  namespace: reports
+spec:
+  schedule: "0 3 * * *"
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          serviceAccountName: report-runner
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: report
+            image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+            imagePullPolicy: IfNotPresent
+            command: ["sh", "/opt/script/run.sh"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+            volumeMounts:
+            - name: script
+              mountPath: /opt/script
+              readOnly: true
+          restartPolicy: Never
+          volumes:
+          - name: script
+            configMap:
+              name: report-script-v7

@@ -1,0 +1,13 @@
+# Required companion to vap.yaml. The policy object matches nothing until this
+# binding exists. validationActions Deny, scoped to namespace team-a.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: pods-only-own-serviceaccount
+spec:
+  policyName: pods-only-own-serviceaccount
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: team-a

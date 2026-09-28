@@ -1,0 +1,12 @@
+# Narrow sudoers policy used only to show the shape of the rules.
+# The less rule is listed by `sudo -l` and is not executed.
+# GTFOBins documents a sudo path for less; this demo does not reproduce it:
+# https://gtfobins.github.io/gtfobins/less/
+Defaults:testuser !requiretty
+Defaults:testuser !use_pty
+Defaults:testuser !lecture
+Defaults:testuser editor=/usr/local/bin/editor-id
+testuser ALL=(root) NOPASSWD: /usr/bin/less
+testuser ALL=(root) NOPASSWD: /usr/local/bin/try-exec
+testuser ALL=(root) NOPASSWD: NOEXEC: /usr/local/bin/try-exec-noexec
+testuser ALL=(root) NOPASSWD: sudoedit /etc/hostname

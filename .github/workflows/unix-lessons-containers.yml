@@ -1,0 +1,187 @@
+name: unix-lessons-containers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - unix-lessons-containers/**
+      - .github/workflows/unix-lessons-containers.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demos-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: unix-lessons-containers
+
+jobs:
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Shellcheck
+        run: |
+          set -euo pipefail
+          version=0.11.0
+          case "$(uname -m)" in
+            x86_64) asset="shellcheck-v${version}.linux.x86_64.tar.xz"; sum="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198" ;;
+            aarch64) asset="shellcheck-v${version}.linux.aarch64.tar.xz"; sum="12b331c1d2db6b9eb13cfca64306b1b157a86eb69db83023e261eaa7e7c14588" ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl -fsSL -o "$asset" "https://github.com/koalaman/shellcheck/releases/download/v${version}/${asset}"
+          echo "${sum}  ${asset}" | sha256sum -c -
+          tar -xJf "$asset"
+          install -m 0755 "shellcheck-v${version}/shellcheck" /tmp/shellcheck
+          find . -path './.git' -prune -o -type f -name '*.sh' -print0 | xargs -0 -r /tmp/shellcheck
+
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Gitleaks
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          version=8.30.1
+          case "$(uname -m)" in
+            x86_64) asset="gitleaks_${version}_linux_x64.tar.gz"; sum="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" ;;
+            aarch64) asset="gitleaks_${version}_linux_arm64.tar.gz"; sum="e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080" ;;
+            *) echo "unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          curl -fsSL -o "$asset" "https://github.com/gitleaks/gitleaks/releases/download/v${version}/${asset}"
+          echo "${sum}  ${asset}" | sha256sum -c -
+          tar -xzf "$asset" gitleaks
+          install -m 0755 gitleaks /tmp/gitleaks
+          rm -f gitleaks
+          # Full history of this repository. fetch-depth: 0 above is required.
+          /tmp/gitleaks git . --redact --no-banner --exit-code 1
+          /tmp/gitleaks dir unix-lessons-containers --redact --no-banner --exit-code 1
+
+  docker-demos:
+    name: docker demos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Runner
+        run: bash scripts/record-runner.sh
+      - name: Pair 1 chroot and capabilities
+        run: bash pair1-chroot-privileged/run-demo.sh
+      - name: Pair 2 sudoers
+        run: bash pair2-sudoers-create-pods/run-sudo-demo.sh
+      - name: Pair 3 writable script
+        run: bash pair3-writable-script-mutable-config/run-docker-demo.sh
+      - name: Pair 4 socket metadata
+        run: bash pair4-docker-group-socket/run-host-demo.sh
+      - name: Publish pair summaries
+        if: always()
+        continue-on-error: true
+        run: |
+          set -u
+          if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            echo "GITHUB_STEP_SUMMARY is unset" >&2
+            exit 0
+          fi
+          shopt -s nullglob
+          files=(summaries/*.md)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            printf '\nNo pair summary files were written.\n' >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            printf '\n' >> "${GITHUB_STEP_SUMMARY}"
+            cat "${f}" >> "${GITHUB_STEP_SUMMARY}"
+          done
+      - name: Upload pair summaries
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pair-summaries-docker
+          path: unix-lessons-containers/summaries/*.md
+          retention-days: 7
+          if-no-files-found: warn
+
+  kind-demos:
+    name: kind demos
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Cluster
+        uses: helm/kind-action@06c1ae10762d3b9c1644e7fe69596ae519e015a2 # v1.15.0
+        with:
+          version: v0.33.0
+          kubectl_version: v1.34.11
+          node_image: kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d
+          cluster_name: unix-lessons
+          wait: 180s
+      - name: Runner and kind node
+        run: bash scripts/record-runner.sh
+      - name: Load busybox into the node
+        run: |
+          set -euo pipefail
+          docker pull docker.io/library/busybox:1.37.0
+          docker pull docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+          kind load docker-image docker.io/library/busybox:1.37.0 --name unix-lessons
+          kind load docker-image docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e --name unix-lessons \
+            || echo "digest image was not imported by that ref; pods that pin the digest will pull it"
+      - name: Validate snippets
+        run: bash validate-snippets.sh
+      - name: Pair 2 RBAC and admission
+        run: bash pair2-sudoers-create-pods/run-k8s-demo.sh
+      - name: Pair 3 ConfigMap and digest
+        run: bash pair3-writable-script-mutable-config/run-k8s-demo.sh
+      - name: Pair 4 socket admission
+        run: bash pair4-docker-group-socket/run-k8s-demo.sh
+      - name: Publish pair summaries
+        if: always()
+        continue-on-error: true
+        run: |
+          set -u
+          if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            echo "GITHUB_STEP_SUMMARY is unset" >&2
+            exit 0
+          fi
+          shopt -s nullglob
+          files=(summaries/*.md)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            printf '\nNo pair summary files were written.\n' >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+          for f in "${files[@]}"; do
+            printf '\n' >> "${GITHUB_STEP_SUMMARY}"
+            cat "${f}" >> "${GITHUB_STEP_SUMMARY}"
+          done
+      - name: Upload pair summaries
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pair-summaries-kind
+          path: unix-lessons-containers/summaries/*.md
+          retention-days: 7
+          if-no-files-found: warn

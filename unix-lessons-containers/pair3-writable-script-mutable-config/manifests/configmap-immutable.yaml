@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: report-script-v7
+  namespace: reports
+immutable: true
+data:
+  run.sh: |
+    #!/bin/sh
+    echo SCRIPT_VERSION=seven

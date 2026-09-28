@@ -1,0 +1,18 @@
+# Submitted only with --dry-run=server. This file must never be applied for real.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: docker-socket
+spec:
+  containers:
+  - name: app
+    image: docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    command: ["sleep", "1"]
+    volumeMounts:
+    - name: dockersock
+      mountPath: /var/run/docker.sock
+  volumes:
+  - name: dockersock
+    hostPath:
+      path: /var/run/docker.sock
+      type: Socket
