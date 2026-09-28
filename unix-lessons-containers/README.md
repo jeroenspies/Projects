@@ -1,6 +1,6 @@
 # Unix lessons, checked in containers
 
-Four small demos. Each one shows a **difference in privileges**: what is allowed, what is denied, and which fix narrows the permission. They do not escape a container, mount a runtime socket, scan a network, or write a payload.
+Four small demos. Old Unix lessons about privileges come back directly in containers and Kubernetes. Each one shows a **difference in privileges**: what is allowed, what is denied, and which fix narrows the permission. They do not escape a container, mount a runtime socket, scan a network, or write a payload.
 
 Background research and demos built with AI assistants, designed and reviewed by me.
 
@@ -88,6 +88,10 @@ kind delete cluster --name unix-lessons
 
 ## Pair 1 — chroot and `privileged`
 
+### What this shows
+
+`chroot` changes pathname lookup; it is not a container boundary. `--privileged` is the runtime form of that shortcut: `CapEff` includes `cap_sys_admin`, and `/dev` has many more entries than the other runs. The default capability set and `--cap-drop ALL` both record `OBS DEV_COUNT=15`; the privileged device count depends on the host. Leaving `privileged` unset, and dropping capabilities, is what keeps that narrow set.
+
 **Unix lesson.** `chroot(2)` changes one ingredient of pathname lookup. It is not a security boundary. Only a process with `CAP_SYS_CHROOT` may call it. `CAP_SYS_ADMIN` is the overloaded "new root" capability (it includes `mount(2)`).
 
 **Kubernetes counterpart.** `privileged: true` drops the restrictions (capabilities, seccomp, AppArmor, devices) that make a container a boundary. Pod Security Standards Baseline forbids privileged containers, host namespaces, and hostPath. Restricted also requires `drop: ["ALL"]`, `allowPrivilegeEscalation: false`, `runAsNonRoot: true`, and an explicit seccomp profile. `allowPrivilegeEscalation` defaults to true. The value `false` cannot be combined with `privileged` or `CAP_SYS_ADMIN`, so such containers can always escalate. `false` sets the kernel `no_new_privs` flag, which also blocks file capabilities on a later exec.
@@ -112,6 +116,10 @@ The comparison that still needs the capability is a **root** process after `--sy
 **Limitations.** The runner's Docker daemon applies its default seccomp and AppArmor profiles (`docker-default` unless the run is `--privileged`). Those profiles can deny a syscall that a capability would otherwise allow. The workflow records the runner OS, kernel, Docker version, AppArmor state, and the profile observed inside each container. kind is not used for this pair.
 
 ## Pair 2 — sudoers and `create pods`
+
+### What this shows
+
+A sudoers rule that names one program still lets that program run others, unless `NOEXEC` blocks the exec. The same grant in Kubernetes is `create pods`: after the RoleBinding, `dev-user` may create pods and still may not get secrets. PodSecurity `restricted` rejects the privileged pod. Once bound, the ValidatingAdmissionPolicy `pods-only-own-serviceaccount` rejects a pod that uses another ServiceAccount.
 
 **Unix lesson.** After sudo runs a program, that program can run other programs. A rule that names only `/usr/bin/less` is still a broad grant. sudoers offers `NOEXEC` (on Linux, a seccomp filter or the `sudo_noexec` preload, depending on the build) and `sudoedit` (the editor runs as the invoking user on a temporary copy). `NOEXEC` is not a complete answer: a root process can still rewrite files. Never point `sudoedit` at a file in a directory the user can write.
 
@@ -155,6 +163,10 @@ spec:
 
 ## Pair 3 — a writable script that a stronger identity runs
 
+### What this shows
+
+A root loop runs a mode `0777` script that a non-root user can change, and `/tmp/proof` then contains `uid=0(root)`; the same append is denied on the root-owned mode `0755` file. On the cluster, `cm-editor` may patch a ConfigMap and may not get it, so `kubectl patch` fails on the client's GET, while a direct API merge-patch with `Impersonate-User` returns HTTP 200 and the next Job prints `SCRIPT_VERSION=two`. An immutable ConfigMap rejects the patch, and the digest-pinned image runs `SCRIPT_VERSION=seven`.
+
 **Unix lesson.** The dangerous part is not the scheduler. It is a file that a stronger identity executes and a weaker identity can change. Mode `0777` on a root-run script is that pattern. The fix on a single host is `root:root` mode `0755` in a directory only root can write.
 
 **Kubernetes counterpart.** A CronJob that runs `image: something:latest`, or that mounts a ConfigMap other people can `patch`, is the same trust boundary: the writer is not the runner. hostPath is a different problem (the pod writes the node) and is not demonstrated. Tags move; digests do not. A ConfigMap can be marked `immutable: true`; the next version is a new name.
@@ -176,6 +188,10 @@ The tag is not retargeted in a registry. The digest in the fixed spec is the pro
 **Limitations.** A ConfigMap mounted into an already running pod updates eventually (kubelet sync). These Jobs are new pods, so they read the current object. busybox's image user is root, so `runAsNonRoot: true` without a numeric `runAsUser` is not enough to start the container; the working CronJobs set `runAsUser: 65534`. See [YAML_VALIDATION.md](YAML_VALIDATION.md).
 
 ## Pair 4 — the docker group and the socket
+
+### What this shows
+
+Membership of the `docker` group is control of the daemon. The runner's `id` includes that group, and the socket is `srw-rw----` (`660`), owned by `root:docker`. The same shortcut in Kubernetes is a pod that mounts the socket with hostPath. PodSecurity `baseline` rejects that volume, and `restricted` rejects it as well. The pod is never stored.
 
 **Unix lesson.** Membership of the `docker` group is root-level control of the daemon.
 
