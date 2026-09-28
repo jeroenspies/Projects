@@ -59,6 +59,14 @@ summary "| \`create pods\` as dev-user | ${before_create} | ${after_create} |"
 summary "| \`get secrets\` as dev-user | ${before_secrets} | ${after_secrets} |"
 summary "| \`get pods\` as dev-user | no | ${after_get_pods} |"
 summary_blank
+transcript "### create pods as dev-user"
+transcript_blank
+transcript "| Check | Before RoleBinding | After RoleBinding |"
+transcript "| --- | --- | --- |"
+transcript "| \`create pods\` as dev-user | ${before_create} | ${after_create} |"
+transcript "| \`get secrets\` as dev-user | ${before_secrets} | ${after_secrets} |"
+transcript "| \`get pods\` as dev-user | no | ${after_get_pods} |"
+transcript_blank
 
 summary "### developer-readonly Role"
 summary_blank

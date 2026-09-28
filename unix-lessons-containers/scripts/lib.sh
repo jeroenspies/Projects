@@ -218,12 +218,24 @@ api_patch_as() {
   # curl's non-zero status must not abort the caller: expect_denied treats
   # that status as the admission/API result. A set -e inside this function
   # would exit the shell on `return 1` before the caller can record it.
+  # Written to files because callers invoke this function in a pipeline,
+  # which would drop variables set in that subshell. The files are the
+  # command that ran and the HTTP status curl reported.
+  mkdir -p /tmp/unix-lessons
+  format_cmd curl -sS -o "${out}" -w '%{http_code}' \
+    -X PATCH \
+    -H "Content-Type: application/merge-patch+json" \
+    -H "Impersonate-User: ${as_user}" \
+    --data-binary @"${body_file}" \
+    "http://127.0.0.1:${port}/api/v1/namespaces/${namespace}/configmaps/${name}" \
+    > /tmp/unix-lessons/api-patch.cmd
   http_code=$(curl -sS -o "${out}" -w '%{http_code}' \
     -X PATCH \
     -H "Content-Type: application/merge-patch+json" \
     -H "Impersonate-User: ${as_user}" \
     --data-binary @"${body_file}" \
     "http://127.0.0.1:${port}/api/v1/namespaces/${namespace}/configmaps/${name}" || true)
+  printf '%s\n' "${http_code}" > /tmp/unix-lessons/api-patch.http
   kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   cat "${out}"

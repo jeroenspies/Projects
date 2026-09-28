@@ -85,6 +85,8 @@ jobs:
           persist-credentials: false
       - name: Runner
         run: bash scripts/record-runner.sh
+      - name: Record environment
+        run: bash scripts/record-environment.sh docker
       - name: Pair 1 chroot and capabilities
         run: bash pair1-chroot-privileged/run-demo.sh
       - name: Pair 2 sudoers
@@ -141,6 +143,8 @@ jobs:
           wait: 180s
       - name: Runner and kind node
         run: bash scripts/record-runner.sh
+      - name: Record environment
+        run: bash scripts/record-environment.sh kind
       - name: Load busybox into the node
         run: |
           set -euo pipefail

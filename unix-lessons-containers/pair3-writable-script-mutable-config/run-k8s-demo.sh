@@ -44,6 +44,14 @@ summary "| patch configmaps | ${patch_yes} |"
 summary "| get configmaps | ${get_no} |"
 summary "| update configmaps | ${update_no} |"
 summary_blank
+transcript "### can-i as cm-editor"
+transcript_blank
+transcript "| cm-editor | Result |"
+transcript "| --- | --- |"
+transcript "| patch configmaps | ${patch_yes} |"
+transcript "| get configmaps | ${get_no} |"
+transcript "| update configmaps | ${update_no} |"
+transcript_blank
 
 run_from_cronjob() {
   local job="$1"
@@ -56,14 +64,12 @@ run_from_cronjob() {
     kubectl get pods -n reports -l "job-name=${job}" -o wide >&2 || true
     kubectl describe pods -n reports -l "job-name=${job}" >&2 || true
     kubectl logs -n reports -l "job-name=${job}" --all-containers >&2 || true
-    if [[ "${job}" == "version-one" || "${job}" == "version-two" ]]; then
-      logf=$(mktemp)
-      cmd_s=$(format_cmd kubectl logs -n reports "job/${job}")
-      set +e
-      kubectl logs -n reports "job/${job}" 2>&1 | tee "${logf}" >/dev/null
-      set -e
-      transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
-    fi
+    logf=$(mktemp)
+    cmd_s=$(format_cmd kubectl logs -n reports "job/${job}")
+    set +e
+    kubectl logs -n reports "job/${job}" 2>&1 | tee "${logf}" >/dev/null
+    set -e
+    transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
     fail "job ${job} did not complete"
   fi
   logf=$(mktemp)
@@ -72,9 +78,7 @@ run_from_cronjob() {
   kubectl logs -n reports "job/${job}" 2>&1 | tee "${logf}" >/dev/null
   logs_rc=${PIPESTATUS[0]}
   set -e
-  if [[ "${job}" == "version-one" || "${job}" == "version-two" ]]; then
-    transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
-  fi
+  transcript_block "SCRIPT_VERSION ${job#version-}" "${cmd_s}" "${logf}"
   if [[ "${logs_rc}" -ne 0 ]]; then
     fail "kubectl logs for job ${job} exited ${logs_rc}"
   fi
@@ -99,6 +103,11 @@ sed -n '1,20p' "${cli_log}" | while IFS= read -r line; do
 done
 summary '```'
 summary_blank
+cli_cmd=$(format_cmd kubectl patch configmap report-script -n reports --as=cm-editor --type=merge \
+  --patch '{"data":{"run.sh":"#!/bin/sh\necho SCRIPT_VERSION=cli\n"}}')
+transcript_block "kubectl patch --as=cm-editor" "${cli_cmd}" "${cli_log}"
+transcript "Exit ${cli_rc}."
+transcript_blank
 
 body=$(mktemp)
 cat >"${body}" <<'EOF'
@@ -108,6 +117,9 @@ expect_ok "API merge-patch as cm-editor" \
   api_patch_as cm-editor reports report-script "${body}"
 summary "The patch request did not GET the ConfigMap. cm-editor's patch verb was enough."
 summary_blank
+transcript_block "API merge-patch as cm-editor" "$(cat /tmp/unix-lessons/api-patch.cmd)" "${OK_LOG}"
+transcript "HTTP $(cat /tmp/unix-lessons/api-patch.http)."
+transcript_blank
 
 logs_two=$(run_from_cronjob version-two nightly-report)
 printf '%s\n' "$logs_two" | grep -q 'SCRIPT_VERSION=two' || fail "second run did not print SCRIPT_VERSION=two: ${logs_two}"
@@ -117,11 +129,19 @@ immutable_body=$(mktemp)
 printf '%s\n' '{"data":{"run.sh":"#!/bin/sh\necho SCRIPT_VERSION=hacked\n"}}' >"${immutable_body}"
 expect_denied 'immutable' "admin patch of immutable ConfigMap" \
   kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file "${immutable_body}"
+transcript_block "admin patch of immutable ConfigMap" "${LAST_CMD}" "${DENIED_LOG}"
 expect_denied 'immutable' "cm-editor API patch of immutable ConfigMap" \
   api_patch_as cm-editor reports report-script-v7 "${immutable_body}"
+transcript_block "cm-editor API patch of immutable ConfigMap" "$(cat /tmp/unix-lessons/api-patch.cmd)" "${DENIED_LOG}"
+transcript "HTTP $(cat /tmp/unix-lessons/api-patch.http)."
+transcript_blank
 
 expect_ok "fixed CronJob" kubectl apply -f "${MAN}/cronjob-fixed.yaml"
-fixed_image=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
+image_log=$(mktemp)
+fixed_image=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}' | tee "${image_log}")
+transcript_block "version-seven image" \
+  "$(format_cmd kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')" \
+  "${image_log}"
 mutable_image=$(kubectl get cronjob -n reports nightly-report -o jsonpath='{.spec.jobTemplate.spec.template.spec.containers[0].image}')
 sa_name=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.serviceAccountName}')
 automount=$(kubectl get cronjob -n reports nightly-report-fixed -o jsonpath='{.spec.jobTemplate.spec.template.spec.automountServiceAccountToken}')

@@ -168,6 +168,7 @@ default_out=$(mktemp)
 nonroot_bind=$(mktemp)
 nonroot_caps=$(mktemp)
 run_cmd 0 "${default_out}" -- /usr/local/bin/observe.sh
+transcript_block "default capability set" "${LAST_CMD}" "${default_out}"
 default_sysctl=$(obs_get "${default_out}" UNPRIV_PORT_START)
 [[ "${default_sysctl}" == "0" ]] || fail "default ip_unprivileged_port_start was ${default_sysctl}, expected 0"
 run_cmd 0 "${nonroot_bind}" --user 1000:1000 -- /usr/local/bin/bind80
