@@ -1,17 +1,17 @@
 # Results
 
-Run: https://github.com/jeroenspies/Projects/actions/runs/36443145605
+Run: https://github.com/jeroenspies/Projects/actions/runs/36454642570
 
-Commit: `c803f485f41e9f7dbece18f773041f85b8512706`
+Commit: `aaae35e1a00fe560063f52a01a7719a6ae7e4c26`
 
 UTC:
 
-- Run created: 2026-09-28T15:22:59Z
-- Run completed: 2026-09-28T15:33:59Z
-- shellcheck: 2026-09-28T15:26:43Z – 2026-09-28T15:26:53Z
-- gitleaks: 2026-09-28T15:26:43Z – 2026-09-28T15:26:49Z
-- docker demos: 2026-09-28T15:26:43Z – 2026-09-28T15:27:29Z
-- kind demos: 2026-09-28T15:26:42Z – 2026-09-28T15:30:30Z
+- Run created: 2026-09-28T16:56:39Z
+- Run completed: 2026-09-28T17:00:27Z
+- shellcheck: 2026-09-28T16:56:43Z – 2026-09-28T16:56:52Z
+- gitleaks: 2026-09-28T16:56:42Z – 2026-09-28T16:56:48Z
+- docker demos: 2026-09-28T16:56:42Z – 2026-09-28T16:57:23Z
+- kind demos: 2026-09-28T16:56:42Z – 2026-09-28T17:00:27Z
 
 Note, outside the transcripts: The /dev count under `--privileged` depends on the host. Run 36409428008 recorded `OBS DEV_COUNT=189`. Run 36412260734 recorded `OBS DEV_COUNT=188`. This run recorded `OBS DEV_COUNT=189`.
 
@@ -240,6 +240,8 @@ OBS APPARMOR=docker-default (enforce)
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
 
+Exit 0.
+
 ### --privileged
 
 Command:
@@ -269,6 +271,8 @@ OBS UNPRIV_PORT_START=0
 OBS APPARMOR=unconfined
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
+
+Exit 0.
 
 ### --cap-drop ALL --security-opt no-new-privileges
 
@@ -331,6 +335,8 @@ OBS UNPRIV_PORT_START=0
 OBS APPARMOR=docker-default (enforce)
 OBS ID_FILE_WRITTEN=/tmp/id-proof
 ```
+
+Exit 0.
 
 ### non-root bind80
 
@@ -396,6 +402,22 @@ chroot: Operation not permitted (errno=1)
 
 Exit 10.
 
+### chroot --cap-drop ALL --cap-add SYS_CHROOT
+
+Command:
+
+```
+docker run --rm --cap-drop ALL --cap-add SYS_CHROOT unix-lessons-pair1:local /usr/local/bin/try-chroot
+```
+
+Output:
+
+```
+chroot: ok
+```
+
+Exit 0.
+
 ## pair2-sudoers-create-pods
 
 ## Pair 2: sudoers
@@ -423,10 +445,10 @@ Sudoers policy plugin version 1.9.13p3
 ### sudo -l
 
 ```
-Matching Defaults entries for testuser on 2695ab1339f1:
+Matching Defaults entries for testuser on 1a2b9a1cd150:
     env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin, use_pty, !requiretty, !use_pty, !lecture, editor=/usr/local/bin/editor-id
 
-User testuser may run the following commands on 2695ab1339f1:
+User testuser may run the following commands on 1a2b9a1cd150:
     (root) NOPASSWD: /usr/bin/less
     (root) NOPASSWD: /usr/local/bin/try-exec
     (root) NOEXEC: NOPASSWD: /usr/local/bin/try-exec-noexec
@@ -450,7 +472,7 @@ Editor id (must be the invoking user, not root):
 uid=1000(testuser) gid=1000(testuser) groups=1000(testuser)
 ```
 
-sudoedit left /etc/hostname unchanged (e9cad3685c5b4f7c4309e32b7332be52906b72a4d2cf984f26d02003bb8fbb15  /etc/hostname).
+sudoedit left /etc/hostname unchanged (1dc6cc4bb204e8fa6a36ada050779f0d3fe32de57e3a69aac9e87705549a68f9  /etc/hostname).
 
 | Check | Result |
 | --- | --- |
@@ -621,27 +643,16 @@ Exit 0.
 Command:
 
 ```
-kubectl get events -n team-a -o jsonpath=\{range\ .items\[\*\]\}\{.reason\}\{\"\ \"\}\{.message\}\{\"\\n\"\}\{end\}
+kubectl get events -n team-a --field-selector reason=FailedCreate\,involvedObject.kind=ReplicaSet -o jsonpath=\{range\ .items\[\*\]\}\{.involvedObject.kind\}\{\"\ \"\}\{.involvedObject.name\}\{\"\ \"\}\{.reason\}\{\"\ \"\}\{.message\}\{\"\\n\"\}\{end\} | grep '^ReplicaSet noncompliant-'
 ```
 
 Output:
 
 ```
-UnexpectedJob Saw a job that the controller did not create or forgot: snippet-cron
-UnexpectedJob Saw a job that the controller did not create or forgot: snippet-cron
-FailedCreate Error creating: pods "noncompliant-759949554b-dd4p6" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
-FailedCreate Error creating: pods "noncompliant-759949554b-ptnzn" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
-FailedCreate Error creating: pods "noncompliant-759949554b-h8nc2" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
-FailedCreate Error creating: pods "noncompliant-759949554b-kqwdx" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
-ScalingReplicaSet Scaled up replica set noncompliant-759949554b from 0 to 1
-Scheduled Successfully assigned team-a/restricted-snippet to unix-lessons-control-plane
-Pulled Container image "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e" already present on machine
-Failed Error: container has runAsNonRoot and image will run as root (pod: "restricted-snippet_team-a(03068338-150c-45d4-b90a-6c7592f9e4a8)", container: app)
-Scheduled Successfully assigned team-a/snippet-cron-m6999 to unix-lessons-control-plane
-Pulled Container image "docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e" already present on machine
-Failed Error: container has runAsNonRoot and image will run as root (pod: "snippet-cron-m6999_team-a(f26296dc-acf5-485c-b55c-6f8fcddef4e4)", container: report)
-FailedCreate Error creating: pods "snippet-cron-" is forbidden: error looking up service account team-a/report-runner: serviceaccount "report-runner" not found
-SuccessfulCreate Created pod: snippet-cron-m6999
+ReplicaSet noncompliant-759949554b FailedCreate Error creating: pods "noncompliant-759949554b-h2rnr" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+ReplicaSet noncompliant-759949554b FailedCreate Error creating: pods "noncompliant-759949554b-zczzp" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+ReplicaSet noncompliant-759949554b FailedCreate Error creating: pods "noncompliant-759949554b-v6l5f" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+ReplicaSet noncompliant-759949554b FailedCreate Error creating: pods "noncompliant-759949554b-zwhhm" is forbidden: violates PodSecurity "restricted:latest": privileged (container "app" must not set securityContext.privileged=true), allowPrivilegeEscalation != false (container "app" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (container "app" must set securityContext.capabilities.drop=["ALL"]), runAsNonRoot != true (pod or container "app" must set securityContext.runAsNonRoot=true), seccompProfile (pod or container "app" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
 ```
 
 Exit 0.
@@ -691,6 +702,8 @@ Output:
 pod/use-other-sa created
 ```
 
+Exit 0.
+
 ### other-sa before the binding, policy unbound
 
 Command:
@@ -705,6 +718,8 @@ Output:
 pod/use-other-sa created
 ```
 
+Exit 0.
+
 ### other-sa after the binding
 
 Command:
@@ -718,6 +733,8 @@ Output:
 ```
 The pods "use-other-sa" is invalid: : ValidatingAdmissionPolicy 'pods-only-own-serviceaccount' with binding 'pods-only-own-serviceaccount' denied request: Pods in this namespace may only use service account default or app.
 ```
+
+Exit 1.
 
 ### app service account pod
 
@@ -804,7 +821,7 @@ Non-root user: uid=1000(appuser) gid=1000(appuser) groups=1000(appuser)
 ### Writable script
 
 Mode of /opt/job.sh:
--rwxrwxrwx 1 root root 37 Sep 28 15:27 /opt/job.sh
+-rwxrwxrwx 1 root root 37 Sep 28 16:57 /opt/job.sh
 
 Script contents after the non-root append:
 ```
@@ -821,8 +838,8 @@ uid=0(root) gid=0(root) groups=0(root)
 
 ### Fixed script
 
-drwxr-xr-x 2 root root 4096 Sep 28 15:27 /opt/fixed
--rwxr-xr-x 1 root root 26 Sep 28 15:27 /opt/fixed/job.sh
+drwxr-xr-x 2 root root 4096 Sep 28 16:57 /opt/fixed
+-rwxr-xr-x 1 root root 26 Sep 28 16:57 /opt/fixed/job.sh
 
 Append exit 2:
 sh: 1: cannot create /opt/fixed/job.sh: Permission denied
@@ -882,7 +899,7 @@ Exit 1.
 Command:
 
 ```
-curl -sS -o /tmp/tmp.sEsAIApmqD -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.R1bkVbfw6d http://127.0.0.1:51623/api/v1/namespaces/reports/configmaps/report-script
+curl -sS -o /tmp/tmp.VsSIq1Em8F -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.XGWiHvjnv3 http://127.0.0.1:60273/api/v1/namespaces/reports/configmaps/report-script
 ```
 
 Output:
@@ -894,9 +911,9 @@ Output:
   "metadata": {
     "name": "report-script",
     "namespace": "reports",
-    "uid": "d0adf146-e0f4-455a-ba64-31ebcea74d34",
-    "resourceVersion": "876",
-    "creationTimestamp": "2026-09-28T15:30:14Z",
+    "uid": "91e4243a-a3db-46dd-a472-39bd250ad25a",
+    "resourceVersion": "846",
+    "creationTimestamp": "2026-09-28T17:00:07Z",
     "annotations": {
       "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"data\":{\"run.sh\":\"#!/bin/sh\\necho SCRIPT_VERSION=one\\n\"},\"kind\":\"ConfigMap\",\"metadata\":{\"annotations\":{},\"name\":\"report-script\",\"namespace\":\"reports\"}}\n"
     },
@@ -905,7 +922,7 @@ Output:
         "manager": "kubectl-client-side-apply",
         "operation": "Update",
         "apiVersion": "v1",
-        "time": "2026-09-28T15:30:14Z",
+        "time": "2026-09-28T17:00:07Z",
         "fieldsType": "FieldsV1",
         "fieldsV1": {
           "f:data": {},
@@ -921,7 +938,7 @@ Output:
         "manager": "curl",
         "operation": "Update",
         "apiVersion": "v1",
-        "time": "2026-09-28T15:30:18Z",
+        "time": "2026-09-28T17:00:13Z",
         "fieldsType": "FieldsV1",
         "fieldsV1": {
           "f:data": {
@@ -958,7 +975,7 @@ SCRIPT_VERSION=two
 Command:
 
 ```
-kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file /tmp/tmp.7uWQNytDol
+kubectl patch configmap report-script-v7 -n reports --type=merge --patch-file /tmp/tmp.LYRTCn5BWy
 ```
 
 Output:
@@ -967,12 +984,14 @@ Output:
 The ConfigMap "report-script-v7" is invalid: data: Forbidden: field is immutable when `immutable` is set
 ```
 
+Exit 1.
+
 ### cm-editor API patch of immutable ConfigMap
 
 Command:
 
 ```
-curl -sS -o /tmp/tmp.hUo84S5TnD -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.7uWQNytDol http://127.0.0.1:58575/api/v1/namespaces/reports/configmaps/report-script-v7
+curl -sS -o /tmp/tmp.e9fD1GSAKm -w %\{http_code\} -X PATCH -H Content-Type:\ application/merge-patch+json -H Impersonate-User:\ cm-editor --data-binary @/tmp/tmp.LYRTCn5BWy http://127.0.0.1:33311/api/v1/namespaces/reports/configmaps/report-script-v7
 ```
 
 Output:
@@ -1016,6 +1035,41 @@ Output:
 docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
 ```
 
+### automountServiceAccountToken
+
+Command:
+
+```
+kubectl get cronjob -n reports nightly-report-fixed -o jsonpath=\{.spec.jobTemplate.spec.template.spec.automountServiceAccountToken\}
+```
+
+Output:
+
+```
+false
+```
+
+Exit 0.
+
+### nightly-report-fixed securityContext
+
+Command:
+
+```
+kubectl get cronjob -n reports nightly-report-fixed -o jsonpath=runAsUser=\{.spec.jobTemplate.spec.template.spec.containers\[0\].securityContext.runAsUser\}\{\"\\n\"\}readOnlyRootFilesystem=\{.spec.jobTemplate.spec.template.spec.containers\[0\].securityContext.readOnlyRootFilesystem\}\{\"\\n\"\}allowPrivilegeEscalation=\{.spec.jobTemplate.spec.template.spec.containers\[0\].securityContext.allowPrivilegeEscalation\}\{\"\\n\"\}drop=\{.spec.jobTemplate.spec.template.spec.containers\[0\].securityContext.capabilities.drop\[0\]\}\{\"\\n\"\}
+```
+
+Output:
+
+```
+runAsUser=65534
+readOnlyRootFilesystem=true
+allowPrivilegeEscalation=false
+drop=ALL
+```
+
+Exit 0.
+
 ### SCRIPT_VERSION seven
 
 Command:
@@ -1045,8 +1099,10 @@ ls -l /var/run/docker.sock
 Output:
 
 ```
-srw-rw---- 1 root docker 0 Sep 28 15:26 /var/run/docker.sock
+srw-rw---- 1 root docker 0 Sep 28 16:55 /var/run/docker.sock
 ```
+
+Exit 0.
 
 ### stat
 
@@ -1062,6 +1118,8 @@ Output:
 srw-rw---- 660 root docker socket
 ```
 
+Exit 0.
+
 ### id
 
 Command:
@@ -1076,6 +1134,8 @@ Output:
 uid=1001(runner) gid=1001(runner) groups=1001(runner),4(adm),100(users),118(docker),999(systemd-journal)
 ```
 
+Exit 0.
+
 ### groups
 
 Command:
@@ -1089,6 +1149,8 @@ Output:
 ```
 runner adm users docker systemd-journal
 ```
+
+Exit 0.
 
 ### sudo -n true
 

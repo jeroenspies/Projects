@@ -6,7 +6,7 @@ Background research and demos built with AI assistants, designed and reviewed by
 
 GitHub Actions runs them. The workflow is [`../.github/workflows/unix-lessons-containers.yml`](../.github/workflows/unix-lessons-containers.yml). It runs on a push to `main` that changes this directory or that workflow file, and when started manually. The job summary for each run keeps the before/after table. Each pair also writes a short transcript: the command that ran, in a code block, and the output that command printed, in a code block. The same transcript is saved as `summaries/<pair>.md` and uploaded as a workflow artifact. RESULTS.md in this directory keeps the transcripts captured from a completed run. Workflow logs and uploaded artifacts are removed after their retention period.
 
-Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md). RESULTS.md holds the transcripts for the claims in each What this shows block and for the other assertions under What the demo proves, except the uid 1000 run with `--cap-add NET_BIND_SERVICE` (CapEff stays 0): that observation is still only in the job summary. `sudo -n true` on the runner is recorded, not asserted.
+Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md). RESULTS.md holds the transcripts for the claims in each What this shows block and for the other assertions under What the demo proves. Only in the job summary: the uid 1000 run with `--cap-add NET_BIND_SERVICE` (CapEff stays 0). `sudo -n true` on the runner is recorded, not asserted.
 
 ## Running locally
 
