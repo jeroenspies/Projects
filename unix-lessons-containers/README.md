@@ -10,9 +10,68 @@ Captured transcripts from the recorded run: [RESULTS.md](RESULTS.md).
 
 ## Running locally
 
-Run these demos only in CI or on a disposable VM. The Docker pair starts a `--privileged` container; the Kubernetes pairs expect a throw-away kind cluster and use its admin kubeconfig. Do not point them at a cluster you care about. Provided as-is, for education.
+Run these demos only in CI or on a disposable Linux VM. The Docker pair starts a `--privileged` container; the Kubernetes pairs expect a throw-away kind cluster and use its admin kubeconfig. Do not point them at a cluster you care about. Provided as-is, for education.
 
-Each Kubernetes script calls `require_kind_context` in [`scripts/lib.sh`](scripts/lib.sh) before its first `kubectl apply`, `create`, or `patch`. The function reads `kubectl config current-context` and stops with an error unless that context is `kind-unix-lessons`, the context kind assigns to the cluster the workflow creates (`cluster_name: unix-lessons`).
+The commands are in [Reproducing](#reproducing). `require_kind_context` in [`scripts/lib.sh`](scripts/lib.sh) stops unless `kubectl config current-context` is `kind-unix-lessons`.
+
+## Reproducing
+
+The workflow name is `unix-lessons-containers`. The file is `.github/workflows/unix-lessons-containers.yml`.
+
+On a fork, open the Actions tab and enable workflows for the fork. Then start that workflow by hand: Actions, `unix-lessons-containers`, Run workflow (`workflow_dispatch`).
+
+On a machine, use a disposable Linux VM. The scripts use GNU coreutils, so not macOS. Docker and kind must already be installed. The workflow pins kind v0.33.0 and kubectl v1.34.11. Run the shell steps below from `unix-lessons-containers`. That directory is `defaults.run.working-directory` in the workflow.
+
+The `docker demos` job does not create a cluster. It runs:
+
+```bash
+bash scripts/record-runner.sh
+bash scripts/record-environment.sh docker
+bash pair1-chroot-privileged/run-demo.sh
+bash pair2-sudoers-create-pods/run-sudo-demo.sh
+bash pair3-writable-script-mutable-config/run-docker-demo.sh
+bash pair4-docker-group-socket/run-host-demo.sh
+```
+
+The `kind demos` job creates the cluster with `helm/kind-action` (`version: v0.33.0`, `kubectl_version: v1.34.11`, `wait: 180s`, `cluster_name: unix-lessons`). The workflow sets no `config`. The action's create command, including the action default `--verbosity=0`, is:
+
+```bash
+kind create cluster --name=unix-lessons --wait=180s --image=kindest/node:v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d --verbosity=0
+```
+
+kind names the kubeconfig context `kind-<cluster_name>`, so this cluster's context is `kind-unix-lessons`, and kind selects it. `require_kind_context` reads `kubectl config current-context` and continues only when the value is `kind-unix-lessons`. If another context is current, select that one:
+
+```bash
+kubectl config use-context kind-unix-lessons
+```
+
+Load busybox the way the workflow does, tag and digest:
+
+```bash
+set -euo pipefail
+docker pull docker.io/library/busybox:1.37.0
+docker pull docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+kind load docker-image docker.io/library/busybox:1.37.0 --name unix-lessons
+kind load docker-image docker.io/library/busybox@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e --name unix-lessons \
+  || echo "digest image was not imported by that ref; pods that pin the digest will pull it"
+```
+
+Then the kind job runs:
+
+```bash
+bash scripts/record-runner.sh
+bash scripts/record-environment.sh kind
+bash validate-snippets.sh
+bash pair2-sudoers-create-pods/run-k8s-demo.sh
+bash pair3-writable-script-mutable-config/run-k8s-demo.sh
+bash pair4-docker-group-socket/run-k8s-demo.sh
+```
+
+Remove the cluster afterwards:
+
+```bash
+kind delete cluster --name unix-lessons
+```
 
 ## What a run never does
 
