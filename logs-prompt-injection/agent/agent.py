@@ -15,6 +15,7 @@ import os
 import re
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.request
 
@@ -166,15 +167,39 @@ def react(text, execution, label):
     return True
 
 
-def probe_egress(url):
-    try:
-        with urllib.request.urlopen(url, timeout=3) as response:
-            response.read()
-            emit(f"EGRESS url={url} result=connected http={response.status}")
-            return True
-    except Exception as exc:
-        emit(f"EGRESS url={url} result=blocked error={type(exc).__name__}")
-        return False
+def probe_egress(url, expect):
+    """Retry until the expected result shows up.
+
+    Programming a NetworkPolicy is not instant. An early success is not the
+    measurement; the loop waits until the connection matches the expectation.
+    """
+    limit = 20 if expect == "closed" else 8
+    last_connected = False
+    last_line = f"EGRESS url={url} attempt=0 result=unknown"
+    for attempt in range(1, limit + 1):
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                response.read()
+                last_connected = True
+                last_line = (
+                    f"EGRESS url={url} attempt={attempt} "
+                    f"result=connected http={response.status}"
+                )
+                if expect == "open":
+                    emit(last_line)
+                    return True
+        except Exception as exc:
+            last_connected = False
+            last_line = (
+                f"EGRESS url={url} attempt={attempt} "
+                f"result=blocked error={type(exc).__name__}"
+            )
+            if expect == "closed":
+                emit(last_line)
+                return False
+        time.sleep(1)
+    emit(last_line)
+    return last_connected
 
 
 def run():
@@ -231,7 +256,7 @@ def run():
         emit(f"AGENT_ERROR measure-expected-403 http={measure_code}")
         return 1
 
-    connected = probe_egress(fake_url)
+    connected = probe_egress(fake_url, expect_egress)
     if expect_egress == "open" and not connected:
         emit("AGENT_ERROR egress-expected-open")
         return 1

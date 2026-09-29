@@ -36,7 +36,7 @@ Een standaard NetworkPolicy werkt op L3/L4: `podSelector`, `namespaceSelector`, 
 
 Het script meet eerst of de CNI van dit cluster NetworkPolicy afdwingt. kind v0.24 en nieuwer levert kindnet met een implementatie, maar de demo neemt dat niet aan. Een probe-pod verbindt met een nep-endpoint in het cluster. Zonder policy moet dat lukken. Met een egress-policy zonder regels moet het mislukken. Lukt het mét policy nog steeds, dan wordt het cluster opnieuw gemaakt zonder kindnet en installeert het script Calico Open Source v3.30.3. De versies van kind, de CNI en Kubernetes staan in RESULTS.md.
 
-Dezelfde nulmeting draait daarna in beide varianten. Onveilig haalt de policy daarna weg en laat zien dat de verbinding weer lukt. Gehard laat de blokkade staan en beperkt de agent tot de API-server.
+Dezelfde nulmeting draait daarna in beide varianten. Onveilig haalt de policy daarna weg en laat zien dat de verbinding weer lukt. Gehard laat de blokkade staan en beperkt de agent tot de API-server. De egress-meting van de agent herhaalt de verbinding tot het resultaat bij de verwachting past, omdat het programmeren van een NetworkPolicy even kan duren.
 
 ## Audit en tool-log
 
