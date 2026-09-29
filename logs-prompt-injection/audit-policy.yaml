@@ -1,0 +1,30 @@
+# API-server audit policy for the throw-away kind cluster.
+# Metadata keeps user, verb, object and response code, and omits request and
+# response bodies, so the dummy Secret value is not copied into this log.
+# The first matching rule wins. Everything else is dropped: audit is not a
+# full packet capture, and it does not see tool calls inside the agent.
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived
+rules:
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["secrets"]
+  - level: Metadata
+    resources:
+      - group: ""
+        resources: ["pods/log"]
+  - level: None
+    users:
+      - system:kube-proxy
+      - system:node
+    verbs: ["watch"]
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /readyz*
+      - /livez*
+      - /metrics
+  - level: None

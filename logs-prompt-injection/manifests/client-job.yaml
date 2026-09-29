@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: client
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: client
+          image: docker.io/library/python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "/opt/client.py"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: TARGET
+              value: http://web:8080
+            - name: MARKER_FILE
+              value: /opt/marker.txt
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: code
+              mountPath: /opt/client.py
+              subPath: client.py
+              readOnly: true
+            - name: code
+              mountPath: /opt/marker.txt
+              subPath: marker.txt
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: code
+          configMap:
+            name: client-code
+        - name: tmp
+          emptyDir: {}

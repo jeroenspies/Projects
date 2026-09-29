@@ -1,0 +1,36 @@
+# Rendered by scripts/render-kind-config.sh.
+# The hostPath is an absolute path to audit-policy.yaml.
+# The networking key is omitted for kindnet and set when Calico is installed.
+# extraArgs stays a map: kind v0.33 with Kubernetes 1.34 uses kubeadm v1beta3.
+# Kubernetes 1.36+ switches kind to v1beta4, where extraArgs is a list.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+__NETWORKING__
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        audit-log-path: /var/log/kubernetes/kube-apiserver-audit.log
+        audit-log-mode: blocking
+        audit-policy-file: /etc/kubernetes/policies/audit-policy.yaml
+        audit-log-maxage: "1"
+        audit-log-maxbackup: "1"
+        audit-log-maxsize: "100"
+      extraVolumes:
+      - name: audit-policies
+        hostPath: /etc/kubernetes/policies
+        mountPath: /etc/kubernetes/policies
+        readOnly: true
+        pathType: DirectoryOrCreate
+      - name: audit-logs
+        hostPath: /var/log/kubernetes
+        mountPath: /var/log/kubernetes
+        readOnly: false
+        pathType: DirectoryOrCreate
+  extraMounts:
+  - hostPath: __AUDIT_POLICY_HOST_PATH__
+    containerPath: /etc/kubernetes/policies/audit-policy.yaml
+    readOnly: true

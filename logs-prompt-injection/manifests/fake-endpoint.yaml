@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-endpoint
+spec:
+  selector:
+    app: fake-endpoint
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fake-endpoint
+  labels:
+    app: fake-endpoint
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: http
+      image: docker.io/library/python:3.13-alpine
+      imagePullPolicy: IfNotPresent
+      command: ["python", "-u", "/opt/fake_endpoint.py"]
+      ports:
+        - name: http
+          containerPort: 8080
+      env:
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+      readinessProbe:
+        httpGet:
+          path: /
+          port: http
+        initialDelaySeconds: 1
+        periodSeconds: 2
+        failureThreshold: 20
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - name: code
+          mountPath: /opt/fake_endpoint.py
+          subPath: fake_endpoint.py
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: code
+      configMap:
+        name: fake-code
+    - name: tmp
+      emptyDir: {}

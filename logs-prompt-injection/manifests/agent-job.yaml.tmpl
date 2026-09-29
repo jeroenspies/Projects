@@ -1,0 +1,62 @@
+# Placeholders are filled by scripts/run-demo.sh. Do not apply this file as-is.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __NAME__
+  namespace: __NS__
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: sre-agent
+    spec:
+      serviceAccountName: sre-agent
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: agent
+          image: docker.io/library/python:3.13-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-u", "/opt/agent.py"]
+          env:
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+            - name: EXECUTION
+              value: "__EXECUTION__"
+            - name: STRIP
+              value: "__STRIP__"
+            - name: EXPECT_MARKER
+              value: "__EXPECT_MARKER__"
+            - name: EXPECT_EGRESS
+              value: "__EXPECT_EGRESS__"
+            - name: APPROVED
+              value: "false"
+            - name: FAKE_ENDPOINT_URL
+              value: "__FAKE_URL__"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: code
+              mountPath: /opt/agent.py
+              subPath: agent.py
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: code
+          configMap:
+            name: agent-code
+        - name: tmp
+          emptyDir: {}

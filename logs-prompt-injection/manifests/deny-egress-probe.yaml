@@ -1,0 +1,11 @@
+# Selects only the probe pod. Empty egress rules deny all of its egress.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-egress-probe
+spec:
+  podSelector:
+    matchLabels:
+      app: egress-probe
+  policyTypes:
+    - Egress
