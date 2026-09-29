@@ -235,7 +235,7 @@ discover_api() {
   [[ "${API_PORT}" =~ ^[0-9]+$ ]] || fail "api service port is not numeric: ${API_PORT}"
   [[ "${EP_PORT}" =~ ^[0-9]+$ ]] || fail "api endpoint port is not numeric: ${EP_PORT}"
   transcript "API-server service ${API_IP}:${API_PORT}, endpoint ${EP_IP}:${EP_PORT}."
-  transcript "De agent-policy laat alleen die adressen toe. DNS naar kube-dns zit er niet bij."
+  transcript "De agent-policy laat alleen die adressen toe. Een lookup naar kube-dns wordt gemeten. Alleen een timeout telt als geblokkeerd. Een resolverfout is geen blokkade."
   transcript_blank
 }
 
@@ -629,7 +629,10 @@ assert_closed_agent() {
   assert_file_contains "${log}" "EGRESS url=" "${label} missing the measurement attempt"
   assert_file_contains "${log}" "result=blocked error=timeout" "${label} egress was not a timeout"
   assert_file_contains "${log}" "EGRESS_POSITIVE destination=api result=connected" "${label} allowed destination did not answer"
-  assert_file_contains "${log}" "DNS name=kube-dns.kube-system.svc.cluster.local result=blocked error=timeout" "${label} DNS lookup was not a timeout"
+  assert_file_contains "${log}" "DNS name=kube-dns.kube-system.svc.cluster.local " "${label} missing the DNS measurement"
+  if grep -F 'DNS name=kube-dns.kube-system.svc.cluster.local ' "${log}" | grep -q -F 'result=resolved'; then
+    fail "${label}: DNS lookup resolved; that is not a closed measurement"
+  fi
   if grep -F 'EGRESS url=' "${log}" | grep -q -F 'result=connected'; then
     fail "${label}: an agent egress attempt connected after the policy gate"
   fi

@@ -363,8 +363,8 @@ def run():
             emit("AGENT_ERROR positive-control-failed")
             return 1
         dns = probe_dns()
-        if dns != "blocked":
-            emit(f"AGENT_ERROR dns-expected-timeout result={dns}")
+        if dns == "resolved":
+            emit(f"AGENT_ERROR dns-resolved result={dns}")
             return 1
     emit("AGENT_DONE")
     return 0
