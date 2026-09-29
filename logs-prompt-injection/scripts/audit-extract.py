@@ -30,6 +30,7 @@ def compact(event, namespace):
     code = status.get("code")
     message = " ".join(str(status.get("message") or "").split())[:240]
     decision = (event.get("annotations") or {}).get("authorization.k8s.io/decision", "")
+    user_agent = event.get("userAgent") or ""
     if code == 403 or decision == "forbid":
         result = "Forbidden"
     elif isinstance(code, int) and code < 400:
@@ -49,6 +50,7 @@ def compact(event, namespace):
         "responseStatus": {"code": code, "message": message},
         "decision": decision,
         "result": result,
+        "userAgent": user_agent,
     }
     return short
 
@@ -66,9 +68,10 @@ def main():
             },
             "responseStatus": {"code": 403, "message": "secrets \"demo-dummy\" is forbidden"},
             "annotations": {"authorization.k8s.io/decision": "forbid"},
+            "userAgent": "demo-measure",
         }
         got = compact(sample, "variant-hardened")
-        if not got or got["responseStatus"]["code"] != 403:
+        if not got or got["responseStatus"]["code"] != 403 or got.get("userAgent") != "demo-measure":
             sys.stderr.write("self-test failed\n")
             return 1
         if compact(sample, "variant-unsafe") is not None:
@@ -95,7 +98,8 @@ def main():
         code = short["responseStatus"]["code"]
         sys.stdout.write(
             "AUDIT user={user} verb={verb} resource={resource} subresource={sub} "
-            "name={name} namespace={namespace} code={code} decision={decision} result={result}\n".format(
+            "name={name} namespace={namespace} code={code} decision={decision} "
+            "result={result} userAgent={user_agent}\n".format(
                 user=short["user"],
                 verb=short["verb"],
                 resource=short["objectRef"]["resource"],
@@ -105,6 +109,7 @@ def main():
                 code=code,
                 decision=short["decision"],
                 result=short["result"],
+                user_agent=short["userAgent"],
             )
         )
         sys.stdout.write("AUDIT_JSON " + json.dumps(short, separators=(",", ":")) + "\n")

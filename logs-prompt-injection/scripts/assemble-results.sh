@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build RESULTS.md from summary files captured in a green run.
-# Usage: assemble-results.sh RUN_ID COMMIT [CREATED] [COMPLETED]
+# Usage: assemble-results.sh RUN_ID COMMIT [CREATED] [COMPLETED] [ARTIFACT_SHA256]
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
@@ -12,6 +12,7 @@ run_id="$1"
 commit="$2"
 created="${3:-}"
 completed="${4:-}"
+artifact_sha="${5:-}"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd "${script_dir}/.." && pwd)
 out="${root}/RESULTS.md"
@@ -26,6 +27,10 @@ url="https://github.com/jeroenspies/Projects/actions/runs/${run_id}"
   printf '\n'
   printf '%s\n' "Commit: \`${commit}\`"
   printf '\n'
+  if [[ -n "${artifact_sha}" ]]; then
+    printf '%s\n' "Artifact \`logs-prompt-injection-summaries\`: \`${artifact_sha}\`"
+    printf '\n'
+  fi
   if [[ -n "${created}" || -n "${completed}" ]]; then
     printf '%s\n' "UTC:"
     printf '\n'

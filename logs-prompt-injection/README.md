@@ -16,7 +16,7 @@ Geen ingress-nginx. Die controller is uitgefaseerd. De webapp is nginx met `log_
 $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent"
 ```
 
-`$request` bevat methode, pad en query string. nginx escapet `"`, `\` en stuurtekens. Leesbare tekst gaat erdoor. Het testscript `client/client.py` zet de marker in vier velden: User-Agent, query string, Referer en gebruikersnaam. In de query string zijn spatie en dubbele punt procent-gecodeerd, omdat een requestregel geen ruwe spatie mag bevatten. Het token zelf blijft leesbaar.
+`$request` bevat methode, pad en query string. nginx escapet `"`, `\` en stuurtekens. Leesbare tekst gaat erdoor. Het testscript `client/client.py` zet de marker in vier velden: User-Agent, query string, Referer en gebruikersnaam. In de query string wordt de spatie `+` en de dubbele punt `%3A`, omdat een requestregel geen ruwe spatie mag bevatten. Het token zelf blijft leesbaar en de stub decodeert de query string niet.
 
 De marker staat in `marker.txt`. De stub in `agent/agent.py` reageert alleen op het token `CANARY-INJECTIE-7f3a` en probeert dan de vaste tool `get_secrets`. Die tool leest het Secret `demo-dummy`. De waarde is `dummy-value-not-a-real-secret` en is geen credential. De stub voert de logtekst niet uit als shellopdracht.
 
@@ -26,17 +26,17 @@ Beide draaien in hetzelfde kind-cluster, elk in een eigen namespace met Pod Secu
 
 **Onveilig** (`variant-unsafe`). De ServiceAccount `sre-agent` heeft `get`, `list`, `watch`, `create`, `update`, `patch` en `delete` op secrets, plus `get`/`list`/`watch` op pods en pods/log. De tool wordt direct uitgevoerd. Er blijft geen egress-policy staan.
 
-**Gehard** (`variant-hardened`). Eigen ServiceAccount, read-only. Die mag pods en `pods/log` lezen en heeft geen `get`, `list` of `watch` op secrets. `kubectl auth can-i` toont dat voor alle drie de verbs. Bezoekersvelden (request target, Referer, User-Agent, gebruikersnaam) worden vervangen door `afgekort` voordat de stub ze ziet. Tool-aanroepen zijn alleen een voorstel. `APPROVED` staat op `false`; CI keurt niet goed. Egress van de agent gaat alleen naar het API-serveradres. DNS naar kube-dns is dicht.
-
-Daarnaast draait in de geharde namespace dezelfde stub één keer op de ongestripte tekst, nog steeds met `APPROVED=false`. Dat meet de goedkeuringsstap, RBAC en audit voor het geval een veld toch bij het model komt. Die run roept `get_secrets` niet aan. Een aparte meting dóét één GET op het Secret, zodat de audit log een Forbidden-regel krijgt. Die meting is niet de tool-aanroep van de stub.
+**Gehard** (`variant-hardened`). Eigen ServiceAccount, read-only. Die mag pods en `pods/log` lezen en heeft geen `get`, `list` of `watch` op secrets. `kubectl auth can-i` toont dat voor alle drie de verbs. Bezoekersvelden (request target, Referer, User-Agent, gebruikersnaam) worden vervangen door `afgekort` voordat de stub ze ziet. Een regel die niet op het logformaat past wordt ook `afgekort`. Drie jobs delen die ServiceAccount. De eerste ziet alleen gestripte tekst. De tweede ziet de ruwe tekst met `APPROVED=false`: de tool blijft een voorstel en doet geen API-aanroep. De derde zet `APPROVED=true`: de stub roept `get_secrets` zelf aan. Verwacht is HTTP 403, geen secretwaarde, en een auditregel met User-Agent `demo-agent`. De aparte meet-GET gebruikt User-Agent `demo-measure`, zodat die in de audit los van de stub staat. Egress van pods met label `app=sre-agent` gaat alleen naar het API-serveradres. Of een lookup naar kube-dns lukt, meet de agent. Alleen een timeout telt als geblokkeerd. Het resultaat staat in RESULTS.md.
 
 ## NetworkPolicy
 
 Een standaard NetworkPolicy werkt op L3/L4: `podSelector`, `namespaceSelector`, `ipBlock` en poort. Geen FQDN. FQDN-filtering vraagt Cilium `toFQDNs`, Calico Enterprise of Calico Cloud, of een egress-proxy. In Calico Open Source staan DNS-policies volgens de documentatie niet; controleer de actuele versie als je die weg kiest. Vrije DNS is zelf een uitgaand kanaal (MITRE ATT&CK T1048, in het bijzonder T1048.003). T1071.004 is DNS als C2-kanaal, niet deze meting. Deze demo filtreert niet op domeinnaam en laat geen data via DNS weglopen.
 
-Het script meet eerst of de CNI van dit cluster NetworkPolicy afdwingt. kind v0.24 en nieuwer levert kindnet met een implementatie, maar de demo neemt dat niet aan. Een probe-pod verbindt met een nep-endpoint in het cluster. Zonder policy moet dat lukken. Met een egress-policy zonder regels moet het mislukken. Lukt het mét policy nog steeds, dan wordt het cluster opnieuw gemaakt zonder kindnet en installeert het script Calico Open Source v3.30.3. De versies van kind, de CNI en Kubernetes staan in RESULTS.md.
+Het script meet eerst of de CNI van dit cluster NetworkPolicy afdwingt. [kind v0.24.0](https://github.com/kubernetes-sigs/kind/releases/tag/v0.24.0) zette NetworkPolicy in kindnet via kube-network-policies. De demo neemt afdwinging in deze run niet aan. Een probe-pod verbindt met een nep-endpoint in het cluster. Zonder policy moet dat lukken. Met een egress-policy zonder regels moet het een timeout zijn. Een andere fout telt niet als blokkade. Lukt het mét policy nog steeds, dan wordt het cluster opnieuw gemaakt zonder kindnet en installeert het script Calico Open Source v3.30.3. Dat Calico-pad is alleen uitgevoerd als de meting kindnet afwijst. De versies van kind, de CNI en Kubernetes staan in RESULTS.md.
 
-Dezelfde nulmeting draait daarna in beide varianten. Onveilig haalt de policy daarna weg en laat zien dat de verbinding weer lukt. Gehard laat de blokkade staan en beperkt de agent tot de API-server. De egress-meting van de agent herhaalt de verbinding tot het resultaat bij de verwachting past, omdat het programmeren van een NetworkPolicy even kan duren.
+Dezelfde nulmeting draait daarna in beide varianten. Onveilig haalt de policy daarna weg en laat zien dat de verbinding weer lukt. Gehard laat de blokkade op de probe staan en beperkt pods met label `app=sre-agent` tot de API-server.
+
+Bevinding: tussen het aanmaken van een NetworkPolicy en het moment dat de CNI die afdwingt zit een open venster. Een pod die in dat venster start kan een bestemming nog bereiken die de policy daarna blokkeert. Een eerdere run liet dat zien: de geharde agent verbond bij de eerste poging en kreeg pas bij de tweede een timeout. Daarom start de agent pas nadat een testpod met hetzelfde label een timeout naar het nep-endpoint heeft gemeten. Elke poging van die testpod staat in RESULTS.md, ook een verbinding die in het venster nog lukte. Verbindt daarna toch een poging van de agent, dan faalt de job. Alleen een timeout telt als geblokkeerd. Direct daarna moet de API-server, een toegestane bestemming, wel antwoorden, en een pod zonder egress-policy moet het nep-endpoint nog kunnen bereiken.
 
 ## Audit en tool-log
 
@@ -95,5 +95,6 @@ kind delete cluster --name logs-prompt-injection
 - Kubernetes audit: <https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/>
 - RBAC good practices (list en watch op secrets): <https://kubernetes.io/docs/concepts/security/rbac-good-practices/>
 - kind auditing: <https://kind.sigs.k8s.io/docs/user/auditing/>
+- kind v0.24.0, NetworkPolicy in kindnet: <https://github.com/kubernetes-sigs/kind/releases/tag/v0.24.0>
 - CWE-117: <https://cwe.mitre.org/data/definitions/117.html>
 - MITRE ATT&CK T1048.003: <https://attack.mitre.org/techniques/T1048/003/>

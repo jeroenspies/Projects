@@ -87,10 +87,11 @@ summary_on_exit() {
 }
 
 transcript() {
-  if [[ -z "${SUMMARY_PATH}" ]]; then
-    return 0
+  # Stdout is the CI job log. The same line is kept in the summary artifact.
+  printf '%s\n' "$1"
+  if [[ -n "${SUMMARY_PATH}" ]]; then
+    printf '%s\n' "$1" >> "${SUMMARY_PATH}" || true
   fi
-  printf '%s\n' "$1" >> "${SUMMARY_PATH}" || true
 }
 
 transcript_blank() {

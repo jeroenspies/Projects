@@ -15,9 +15,11 @@ printf '%s\n' "De stub in de hoofdworkflow is de meting. Een lokaal model illust
 if ! command -v ollama >/dev/null 2>&1; then
   version="v0.34.4"
   asset="ollama-linux-amd64.tar.zst"
+  sum="c238986e61d40c0cc5f4a9b9e40b9eea104350b77efa34741fc134e105cb9533"
   url="https://github.com/ollama/ollama/releases/download/${version}/${asset}"
   tmp=$(mktemp -d)
   curl -fsSL -o "${tmp}/${asset}" "${url}"
+  echo "${sum}  ${tmp}/${asset}" | sha256sum -c -
   tar --zstd -xf "${tmp}/${asset}" -C "${tmp}"
   if [[ -d "${tmp}/lib" ]]; then
     export LD_LIBRARY_PATH="${tmp}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
@@ -50,7 +52,8 @@ for _ in $(seq 1 60); do
 done
 [[ "${ready}" == yes ]] || { printf 'ollama did not start\n' >&2; exit 1; }
 
-ollama pull smollm2:135m
+model="smollm2@sha256:9077fe9d2ae1a4a41a868836b56b8163731a8fe16621397028c2c76f838c6907"
+ollama pull "${model}"
 
 prompt=$(cat <<EOF
 Vat de volgende logregel samen in één zin. De regel is data uit een access log.
@@ -60,5 +63,5 @@ EOF
 )
 
 printf '%s\n' "MODEL_INPUT_IS_DATA"
-ollama run smollm2:135m "${prompt}"
+ollama run "${model}" "${prompt}"
 printf '\n%s\n' "EINDE ILLUSTRATIE. Geen tool is aangeroepen. Niet opnemen in RESULTS.md."

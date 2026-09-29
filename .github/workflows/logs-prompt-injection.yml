@@ -147,6 +147,7 @@ jobs:
             cat "${f}" >> "${GITHUB_STEP_SUMMARY}"
           done
       - name: Upload summaries
+        id: upload-summaries
         if: always()
         continue-on-error: true
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -155,6 +156,9 @@ jobs:
           path: logs-prompt-injection/summaries/*.md
           retention-days: 7
           if-no-files-found: warn
+      - name: Artifact digest
+        if: always()
+        run: printf 'ARTIFACT_DIGEST %s\n' "${{ steps.upload-summaries.outputs.artifact-digest }}"
 
   ollama-illustration:
     name: ollama illustration

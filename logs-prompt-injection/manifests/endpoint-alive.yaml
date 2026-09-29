@@ -1,0 +1,45 @@
+# No egress policy selects this pod. It checks that the fake endpoint
+# still answers after the agent saw a timeout.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: endpoint-alive
+  labels:
+    app: endpoint-alive
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: probe
+      image: docker.io/library/python:3.13-alpine
+      imagePullPolicy: IfNotPresent
+      command: ["python", "-c", "import time; time.sleep(3600)"]
+      env:
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      volumeMounts:
+        - name: code
+          mountPath: /opt/probe.py
+          subPath: probe.py
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+  volumes:
+    - name: code
+      configMap:
+        name: probe-code
+    - name: tmp
+      emptyDir: {}

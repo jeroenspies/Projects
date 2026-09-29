@@ -10,6 +10,10 @@ source "${ROOT}/scripts/lib.sh"
 summary_open "environment-kind"
 transcript "## Omgeving (kind)"
 transcript_blank
+if [[ -n "${GITHUB_SHA:-}" ]]; then
+  transcript "Getest als GITHUB_SHA ${GITHUB_SHA}. Bij een pull_request is dat de merge-commit die Actions uitcheckt."
+  transcript_blank
+fi
 
 run_record() {
   local heading="$1"
