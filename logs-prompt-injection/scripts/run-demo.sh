@@ -569,7 +569,7 @@ wait_policy_gate() {
   if [[ "${blocked_at}" -eq 0 ]]; then
     fail "policy-gate zag geen timeout. De policy is niet aantoonbaar actief."
   fi
-  transcript "Bevinding: tussen het aanmaken van NetworkPolicy agent-egress-api-only en de afdwinging door de CNI zit een open venster. Een pod met label app=sre-agent die in dat venster start kan het nep-endpoint nog bereiken. Testpod policy-gate logde elke poging. Verbonden pogingen: ${connected}. Eerste timeout: poging ${blocked_at}. De agent start pas na die timeout. Verbindt een poging van de agent daarna toch, dan faalt die job. Alleen een timeout telt als geblokkeerd."
+  transcript "Bevinding: tussen het aanmaken van NetworkPolicy agent-egress-api-only en de afdwinging door de CNI zit een open venster. Een pod met label app=sre-agent die in dat venster start kan het nep-endpoint nog bereiken. Testpod policy-gate logde elke poging. Verbonden pogingen: ${connected}. Eerste timeout: poging ${blocked_at}. De agent-job start pas na die timeout. Een nieuwe pod heeft daarna nog een eigen venster; die pogingen staan als EGRESS_GATE in de agentlog. De meting is de EGRESS-poging daarna. Verbindt die, dan faalt de job. Alleen een timeout telt als geblokkeerd."
   transcript_blank
   kubectl delete pod -n "${ns}" policy-gate --wait=false >/dev/null 2>&1 || true
 }
@@ -625,6 +625,8 @@ assert_closed_agent() {
   local label="$2"
   assert_file_excludes "${log}" "${DUMMY_VALUE}" "${label} run printed the dummy value"
   assert_file_contains "${log}" "MEASURE verb=get resource=secrets name=demo-dummy http=403" "${label} measure was not Forbidden"
+  assert_file_contains "${log}" "EGRESS_GATE " "${label} did not log the per-pod window"
+  assert_file_contains "${log}" "EGRESS url=" "${label} missing the measurement attempt"
   assert_file_contains "${log}" "result=blocked error=timeout" "${label} egress was not a timeout"
   assert_file_contains "${log}" "EGRESS_POSITIVE destination=api result=connected" "${label} allowed destination did not answer"
   assert_file_contains "${log}" "DNS name=kube-dns.kube-system.svc.cluster.local result=blocked error=timeout" "${label} DNS lookup was not a timeout"

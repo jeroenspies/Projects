@@ -195,6 +195,29 @@ def classify_connect(url, timeout):
         return "error", f"error={type(exc).__name__}", str(exc)
 
 
+def warm_until_timeout(url):
+    """Log every attempt until this pod's first timeout.
+
+    A NetworkPolicy is not active for a new pod at the first packet, even
+    after another pod with the same label has already timed out. Those early
+    connections are the open window. They are not the measurement.
+    """
+    for attempt in range(1, 21):
+        result, summary, detail = classify_connect(url, 3)
+        emit(
+            f"EGRESS_GATE attempt={attempt} result={result} "
+            f"{summary} detail={detail}"
+        )
+        if result == "blocked":
+            return attempt
+        if result == "error":
+            emit(f"AGENT_ERROR gate-not-timeout result={result} detail={detail}")
+            return None
+        socket_wait()
+    emit("AGENT_ERROR gate-never-timed-out")
+    return None
+
+
 def probe_egress(url, expect):
     """One measurement after the policy gate. Log every attempt.
 
@@ -325,6 +348,9 @@ def run():
         emit(f"AGENT_ERROR measure-expected-403 http={measure_code}")
         return 1
 
+    if expect_egress == "closed":
+        if warm_until_timeout(fake_url) is None:
+            return 1
     egress = probe_egress(fake_url, expect_egress)
     if expect_egress == "open" and egress != "connected":
         emit(f"AGENT_ERROR egress-expected-open result={egress}")
